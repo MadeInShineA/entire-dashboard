@@ -1,0 +1,62 @@
+{
+  "cli_version": "0.13.2",
+  "checkpoint_id": "93edfeffeb95",
+  "strategy": "manual-commit",
+  "branch": "main",
+  "checkpoints_count": 3,
+  "files_touched": [
+    "server/src/main/java/com/mzfuture/entire/checkpoint/controller/FileHistoryController.java",
+    "server/src/main/java/com/mzfuture/entire/checkpoint/dto/response/FileHistoryDTO.java",
+    "server/src/main/java/com/mzfuture/entire/checkpoint/dto/response/FileListDTO.java",
+    "server/src/main/java/com/mzfuture/entire/checkpoint/git/CheckpointGitReader.java",
+    "server/src/main/java/com/mzfuture/entire/checkpoint/repository/CheckpointRepository.java",
+    "server/src/main/java/com/mzfuture/entire/checkpoint/repository/SessionRepository.java",
+    "server/src/main/java/com/mzfuture/entire/checkpoint/service/CheckpointService.java",
+    "server/src/main/java/com/mzfuture/entire/checkpoint/service/FileHistoryService.java",
+    "server/src/main/java/com/mzfuture/entire/checkpoint/service/impl/CheckpointServiceImpl.java",
+    "server/src/main/java/com/mzfuture/entire/checkpoint/service/impl/CheckpointSyncServiceImpl.java",
+    "server/src/main/java/com/mzfuture/entire/checkpoint/service/impl/FileHistoryServiceImpl.java",
+    "server/src/main/java/com/mzfuture/entire/gitsync/service/GitOperationService.java",
+    "server/src/main/java/com/mzfuture/entire/gitsync/service/impl/GitOperationServiceImpl.java",
+    "server/src/main/java/com/mzfuture/entire/gitsync/service/impl/GitSyncServiceImpl.java",
+    "server/src/test/java/com/mzfuture/entire/checkpoint/git/CheckpointGitReaderBlameTest.java",
+    "web/app/assets/css/main.css",
+    "web/app/features/file-history/api/file-history.api.ts",
+    "web/app/features/file-history/components/FileBlameView.vue",
+    "web/app/features/file-history/components/FileSessionList.vue",
+    "web/app/features/file-history/types/file-history.types.ts",
+    "web/app/features/file-history/utils/session-colors.ts",
+    "web/app/layouts/admin.vue",
+    "web/app/pages/admin/files/index.vue"
+  ],
+  "sessions": [
+    {
+      "metadata": "/93/edfeffeb95/0/metadata.json",
+      "transcript": "/93/edfeffeb95/0/full.jsonl",
+      "compact_transcript": "/93/edfeffeb95/0/transcript.jsonl",
+      "content_hash": "/93/edfeffeb95/0/content_hash.txt",
+      "prompt": "/93/edfeffeb95/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 174,
+    "cache_creation_tokens": 107463,
+    "cache_read_tokens": 14732059,
+    "output_tokens": 63780,
+    "api_call_count": 79
+  },
+  "redaction": {
+    "replacements": 59,
+    "layers": {
+      "betterleaks": 56,
+      "connection_string": 0,
+      "credential_key": 0,
+      "credential_value": 0,
+      "credentialed_uri": 2,
+      "entropy": 7,
+      "key_context": 0,
+      "provider_token": 0,
+      "shell_stdin": 0
+    }
+  }
+}

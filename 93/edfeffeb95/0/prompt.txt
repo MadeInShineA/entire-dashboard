@@ -1,0 +1,13 @@
+can I host this page on github pages ?
+
+---
+
+So with this dashboard, I can see the different sessions and what they did, can I see for a particular file which sessions affected it or something like that ?
+
+---
+
+Yes please do that!
+
+---
+
+So each of my coworker and the teacher will need a read access to the github repo ?

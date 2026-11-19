@@ -1,0 +1,29 @@
+Why don't I see the checkpoints on the entire-dashboard ?
+
+---
+
+How do you know the checkpoint is local and on github ? It doesn't seem to appear onhttps://github.com/MadeInShineA/data-viz-project
+
+---
+
+I want you to  modify the entire-dashboard since it's a fork I own
+
+---
+
+[Image #1] Is this normal ? I don't see any checkpoint
+
+---
+
+Why need a github token ? The repo is public
+
+---
+
+How to add the token =
+
+---
+
+I have the access token, can you build the new container ?
+
+---
+
+Ok it works! Now can you push the changes to my dashboard fork ? Should I publish an image to docker hub ?

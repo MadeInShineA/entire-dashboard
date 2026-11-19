@@ -1,0 +1,49 @@
+{
+  "cli_version": "0.13.2",
+  "checkpoint_id": "057730685065",
+  "strategy": "manual-commit",
+  "branch": "main",
+  "checkpoints_count": 4,
+  "files_touched": [
+    "server/src/main/java/com/mzfuture/entire/checkpoint/entity/Checkpoint.java",
+    "server/src/main/java/com/mzfuture/entire/checkpoint/git/CheckpointGitReader.java",
+    "server/src/main/java/com/mzfuture/entire/checkpoint/service/impl/CheckpointSyncServiceImpl.java",
+    "server/src/main/java/com/mzfuture/entire/checkpoint/service/impl/SessionServiceImpl.java",
+    "server/src/main/java/com/mzfuture/entire/gitsync/service/GitOperationService.java",
+    "server/src/main/java/com/mzfuture/entire/gitsync/service/GitSyncService.java",
+    "server/src/main/java/com/mzfuture/entire/gitsync/service/impl/GitOperationServiceImpl.java",
+    "server/src/main/java/com/mzfuture/entire/gitsync/service/impl/GitSyncServiceImpl.java",
+    "server/src/main/resources/db/migration/V20261119180000__WidenCheckpointIdColumn.sql",
+    "server/src/test/java/com/mzfuture/entire/checkpoint/git/CheckpointRefsBackendTest.java"
+  ],
+  "sessions": [
+    {
+      "metadata": "/05/7730685065/0/metadata.json",
+      "transcript": "/05/7730685065/0/full.jsonl",
+      "compact_transcript": "/05/7730685065/0/transcript.jsonl",
+      "content_hash": "/05/7730685065/0/content_hash.txt",
+      "prompt": "/05/7730685065/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 120,
+    "cache_creation_tokens": 108430,
+    "cache_read_tokens": 5356285,
+    "output_tokens": 34194,
+    "api_call_count": 55
+  },
+  "redaction": {
+    "replacements": 25,
+    "layers": {
+      "betterleaks": 22,
+      "connection_string": 0,
+      "credential_key": 0,
+      "credential_value": 0,
+      "credentialed_uri": 2,
+      "entropy": 3,
+      "key_context": 0,
+      "provider_token": 0,
+      "shell_stdin": 0
+    }
+  }
+}

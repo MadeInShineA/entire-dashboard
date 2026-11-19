@@ -96,7 +96,8 @@ export default defineNuxtConfig({
                 {
                     proxy:
                         {
-                            to: 'http://127.0.0.1:8080/api/v1/**',
+                            // Override to point at a running container, e.g. NUXT_API_PROXY=http://127.0.0.1:8081
+                            to: `${process.env.NUXT_API_PROXY || 'http://127.0.0.1:8080'}/api/v1/**`,
                         },
                 },
         },

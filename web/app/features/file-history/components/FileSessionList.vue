@@ -1,5 +1,4 @@
 <script setup lang="ts">
-import type { CheckpointDTO } from '~/features/checkpoint/types/checkpoint.types'
 import type { FileSession } from '../types/file-history.types'
 import { sessionColorVar } from '../utils/session-colors'
 import { formatDate } from '~/shared/utils/format'
@@ -14,7 +13,7 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   select: [key: number | null]
-  open: [checkpoint: CheckpointDTO]
+  open: [row: FileSession]
 }>()
 
 function toggle(row: FileSession) {
@@ -71,8 +70,8 @@ function toggle(row: FileSession) {
         size="xs"
         color="neutral"
         variant="ghost"
-        aria-label="Open checkpoint details"
-        @click.stop="emit('open', row.checkpoint)"
+        aria-label="Open session transcript and diff"
+        @click.stop="emit('open', row)"
       />
     </li>
   </ul>

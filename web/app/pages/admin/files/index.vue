@@ -2,6 +2,7 @@
 import CheckpointDetailSlideover from '~/features/checkpoint/components/CheckpointDetailSlideover.vue'
 import FileSessionList from '~/features/file-history/components/FileSessionList.vue'
 import FileBlameView from '~/features/file-history/components/FileBlameView.vue'
+import FileTreePanel from '~/features/file-history/components/FileTreePanel.vue'
 import { fileHistoryApi } from '~/features/file-history/api/file-history.api'
 import type { CheckpointDTO } from '~/features/checkpoint/types/checkpoint.types'
 import type { RepoDTO } from '~/features/repository/types/repoDTO'
@@ -15,10 +16,9 @@ const route = useRoute()
 const router = useRouter()
 
 const repos = ref<RepoDTO[]>([])
-const repoId = ref<number | undefined>(route.query.repoId ? Number(route.query.repoId) : undefined)
-const branch = ref<string | undefined>((route.query.branch as string) || undefined)
-const path = ref<string | undefined>((route.query.path as string) || undefined)
-const aiOnly = ref(route.query.aiOnly !== 'false')
+const repoId = ref<number | undefined>()
+const branch = ref<string | undefined>()
+const path = ref<string | null>(null)
 
 const fileList = ref<FileList | null>(null)
 const history = ref<FileHistory | null>(null)
@@ -29,22 +29,10 @@ const selectedKey = ref<number | null>(null)
 
 const detailOpen = ref(false)
 const detailCheckpoint = ref<CheckpointDTO | null>(null)
+const detailSessionId = ref<number | null>(null)
 
-// ---- options -------------------------------------------------------------
 const repoItems = computed(() => repos.value.map((r) => ({ label: r.name, value: r.id })))
 const branchItems = computed(() => (fileList.value?.branches ?? []).map((b) => ({ label: b, value: b })))
-const fileItems = computed(() =>
-  (fileList.value?.files ?? [])
-    .filter((f) => !aiOnly.value || f.sessionCount > 0)
-    .map((f) => ({
-      label: f.path,
-      value: f.path,
-      suffix: [
-        f.sessionCount ? `${f.sessionCount} session${f.sessionCount === 1 ? '' : 's'}` : '',
-        f.existsAtHead ? '' : 'deleted',
-      ].filter(Boolean).join(' · '),
-    }))
-)
 
 // ---- keys, labels, colors --------------------------------------------------
 // A row is a session; a checkpoint without session metadata is keyed by -checkpoint.id
@@ -52,7 +40,7 @@ const keyOf = (row: FileSession) => row.session?.id ?? -row.checkpoint.id
 const lineKey = (line: FileLine) =>
   line.sessionId ?? (line.checkpointId != null ? -line.checkpointId : null)
 
-/** Oldest first, so labels are stable as new sessions are added */
+/** Oldest first, so labels stay stable as new sessions are added */
 const chronological = computed(() =>
   [...(history.value?.sessions ?? [])].sort(
     (a, b) => a.checkpoint.commitTime - b.checkpoint.commitTime
@@ -74,12 +62,25 @@ const aiShare = computed(() => {
   return Math.round((h.checkpointLines / h.totalLines) * 100)
 })
 
-// ---- loading ---------------------------------------------------------------
-async function loadRepos() {
-  repos.value = await fileHistoryApi.listRepos()
-  if (repoId.value == null && repos.value.length) repoId.value = repos.value[0]!.id
+// ---- URL <-> state ---------------------------------------------------------
+function readQuery() {
+  const q = route.query
+  const qRepo = q.repoId ? Number(q.repoId) : undefined
+  if (qRepo != null && !Number.isNaN(qRepo)) repoId.value = qRepo
+  branch.value = (q.branch as string) || branch.value
+  path.value = (q.path as string) || null
 }
 
+function writeQuery() {
+  const query = {
+    ...(repoId.value != null ? { repoId: String(repoId.value) } : {}),
+    ...(branch.value ? { branch: branch.value } : {}),
+    ...(path.value ? { path: path.value } : {}),
+  }
+  if (JSON.stringify(query) !== JSON.stringify(route.query)) router.replace({ query })
+}
+
+// ---- loading ---------------------------------------------------------------
 async function loadFiles() {
   if (repoId.value == null) return
   loadingFiles.value = true
@@ -87,7 +88,6 @@ async function loadFiles() {
   try {
     fileList.value = await fileHistoryApi.listFiles(repoId.value, branch.value)
     branch.value = fileList.value.branch ?? undefined
-    if (path.value && !fileList.value.files.some((f) => f.path === path.value)) path.value = undefined
   } catch (e: any) {
     error.value = e?.data?.message || e?.message || 'Failed to load files'
     fileList.value = null
@@ -96,8 +96,10 @@ async function loadFiles() {
   }
 }
 
+let historySeq = 0
 async function loadHistory() {
   selectedKey.value = null
+  const seq = ++historySeq
   if (repoId.value == null || !path.value) {
     history.value = null
     return
@@ -105,47 +107,70 @@ async function loadHistory() {
   loadingHistory.value = true
   error.value = null
   try {
-    history.value = await fileHistoryApi.getHistory(repoId.value, path.value, branch.value)
+    const h = await fileHistoryApi.getHistory(repoId.value, path.value, branch.value)
+    if (seq === historySeq) history.value = h
   } catch (e: any) {
-    error.value = e?.data?.message || e?.message || 'Failed to load file history'
-    history.value = null
+    if (seq === historySeq) {
+      error.value = e?.data?.message || e?.message || 'Failed to load file history'
+      history.value = null
+    }
   } finally {
-    loadingHistory.value = false
+    if (seq === historySeq) loadingHistory.value = false
   }
 }
 
-function openDetail(checkpoint: CheckpointDTO) {
-  detailCheckpoint.value = checkpoint
+function onRepoChange(id: number) {
+  if (id === repoId.value) return
+  repoId.value = id
+  branch.value = undefined
+  path.value = null
+  history.value = null
+  writeQuery()
+  loadFiles()
+}
+
+async function onBranchChange(b: string) {
+  if (b === branch.value) return
+  branch.value = b
+  writeQuery()
+  await loadFiles()
+  await loadHistory()
+}
+
+function onSelectFile(p: string) {
+  if (p === path.value) return
+  path.value = p
+  writeQuery()
+  loadHistory()
+}
+
+function openDetail(row: FileSession) {
+  detailCheckpoint.value = row.checkpoint
+  detailSessionId.value = row.session?.id ?? null
   detailOpen.value = true
 }
 
-watch(repoId, async (id, old) => {
-  if (old !== undefined && id !== old) {
-    branch.value = undefined
-    path.value = undefined
+// Links from elsewhere (e.g. the checkpoint panel) change the query while this page is open
+watch(() => route.query, async () => {
+  const prevRepo = repoId.value
+  const prevBranch = branch.value
+  const prevPath = path.value
+  readQuery()
+  if (repoId.value !== prevRepo || branch.value !== prevBranch) {
+    await loadFiles()
+    await loadHistory()
+  } else if (path.value !== prevPath) {
+    await loadHistory()
   }
-  await loadFiles()
-})
-watch(branch, async (b, old) => {
-  if (old !== undefined && b !== old && fileList.value?.branch !== b) await loadFiles()
-})
-watch([repoId, branch, path], loadHistory)
-watch([repoId, branch, path, aiOnly], () => {
-  router.replace({
-    query: {
-      ...(repoId.value != null ? { repoId: String(repoId.value) } : {}),
-      ...(branch.value ? { branch: branch.value } : {}),
-      ...(path.value ? { path: path.value } : {}),
-      ...(aiOnly.value ? {} : { aiOnly: 'false' }),
-    },
-  })
 })
 
 onMounted(async () => {
-  await loadRepos()
-  // repoId from the URL doesn't trigger the watcher; one picked by loadRepos() does
-  if (repoId.value != null && !fileList.value && !loadingFiles.value) await loadFiles()
-  if (path.value && !history.value && !loadingHistory.value) await loadHistory()
+  readQuery()
+  repos.value = await fileHistoryApi.listRepos()
+  if (repoId.value == null && repos.value.length) repoId.value = repos.value[0]!.id
+  writeQuery()
+  await loadFiles()
+  await loadHistory()
 })
 </script>
 
@@ -159,108 +184,112 @@ onMounted(async () => {
       </UDashboardNavbar>
     </template>
     <template #body>
-      <div class="space-y-5 mt-2">
+      <div class="flex flex-col gap-4 mt-2 min-h-0 h-full">
         <!-- Filters: one row -->
         <div class="flex flex-wrap items-center gap-3">
           <USelect
-            v-model="repoId"
+            :model-value="repoId"
             :items="repoItems"
             placeholder="Repository"
             class="w-52"
             :loading="!repos.length"
+            @update:model-value="onRepoChange($event as number)"
           />
           <USelect
-            v-model="branch"
+            :model-value="branch"
             :items="branchItems"
             placeholder="Branch"
             class="w-40"
             :disabled="!branchItems.length"
+            @update:model-value="onBranchChange($event as string)"
           />
-          <USelectMenu
-            v-model="path"
-            :items="fileItems"
-            value-key="value"
-            placeholder="Choose a file…"
-            :search-input="{ placeholder: 'Search files…' }"
-            virtualize
-            class="w-full sm:w-[28rem]"
-            :loading="loadingFiles"
-          >
-            <template #item-trailing="{ item }">
-              <span class="text-xs text-muted whitespace-nowrap">{{ item.suffix }}</span>
-            </template>
-          </USelectMenu>
-          <USwitch v-model="aiOnly" label="Only files touched by AI" />
         </div>
 
         <UAlert v-if="error" color="error" variant="subtle" icon="i-lucide-circle-alert" :title="error" />
 
-        <div v-if="!path" class="text-sm text-muted py-16 text-center">
-          Choose a file to see which AI sessions touched it and where each line comes from.
-        </div>
+        <div class="grid gap-5 lg:grid-cols-[17rem_minmax(0,1fr)] min-h-0 flex-1">
+          <FileTreePanel
+            :files="fileList?.files ?? []"
+            :selected-path="path"
+            :loading="loadingFiles"
+            class="lg:sticky lg:top-0 max-h-[70vh] lg:max-h-[calc(100vh-11rem)]"
+            @select="onSelectFile"
+          />
 
-        <div v-else-if="loadingHistory" class="flex justify-center py-12">
-          <UIcon name="i-lucide-loader-2" class="w-8 h-8 animate-spin text-primary" />
-        </div>
+          <div class="min-w-0 space-y-4">
+            <div v-if="!path" class="text-sm text-muted py-16 text-center">
+              Pick a file in the tree to see which AI sessions touched it and where each line comes from.
+              <div class="mt-1 text-xs">Files marked with <UIcon name="i-lucide-sparkles" class="w-3 h-3 align-middle" /> were touched by AI sessions.</div>
+            </div>
 
-        <template v-else-if="history">
-          <!-- Headline -->
-          <div class="flex flex-wrap items-baseline gap-x-6 gap-y-1">
-            <h2 class="font-mono text-base font-semibold text-highlighted break-all">{{ history.path }}</h2>
-            <p v-if="aiShare != null" class="text-sm text-muted">
-              <span class="text-highlighted font-semibold">{{ history.checkpointLines }}</span>
-              of {{ history.totalLines }} lines ({{ aiShare }}%) were last changed in a commit linked to an AI checkpoint
-            </p>
-          </div>
+            <div v-else-if="loadingHistory && !history" class="flex justify-center py-12">
+              <UIcon name="i-lucide-loader-2" class="w-8 h-8 animate-spin text-primary" />
+            </div>
 
-          <div class="grid gap-5 xl:grid-cols-[minmax(20rem,26rem)_1fr]">
-            <section class="space-y-2">
-              <h3 class="text-sm font-semibold text-highlighted">
-                Sessions that touched this file
-                <span class="text-muted font-normal">({{ history.sessions.length }})</span>
-              </h3>
-              <FileSessionList
-                :rows="history.sessions"
-                :key-of="keyOf"
-                :slot-by-key="slotByKey"
-                :label-by-key="labelByKey"
-                :selected-key="selectedKey"
-                @select="selectedKey = $event"
-                @open="openDetail"
-              />
-              <p class="text-xs text-muted">
-                Click a session to highlight its lines. Attribution is per commit: a line belongs to a session when
-                the commit that last changed it carries that session's checkpoint, even if you edited it by hand
-                before committing.
-              </p>
-            </section>
-
-            <section class="space-y-2 min-w-0">
-              <h3 class="text-sm font-semibold text-highlighted">Line by line</h3>
-              <div v-if="!history.existsAtHead" class="text-sm text-muted py-6">
-                This file no longer exists on <span class="font-mono">{{ history.branch }}</span>.
+            <template v-else-if="history">
+              <!-- Headline -->
+              <div class="flex flex-wrap items-baseline gap-x-6 gap-y-1">
+                <h2 class="font-mono text-base font-semibold text-highlighted break-all">{{ history.path }}</h2>
+                <p v-if="aiShare != null" class="text-sm text-muted">
+                  <span class="text-highlighted font-semibold">{{ history.checkpointLines }}</span>
+                  of {{ history.totalLines }} lines ({{ aiShare }}%) were last changed in a commit linked to an AI checkpoint
+                </p>
+                <UIcon v-if="loadingHistory" name="i-lucide-loader-2" class="w-4 h-4 animate-spin text-primary" />
               </div>
-              <div v-else-if="history.binary" class="text-sm text-muted py-6">Binary file: no line view.</div>
-              <template v-else>
-                <FileBlameView
-                  :lines="history.lines"
-                  :line-key="lineKey"
+
+              <section class="space-y-2">
+                <h3 class="text-sm font-semibold text-highlighted">
+                  Sessions that touched this file
+                  <span class="text-muted font-normal">({{ history.sessions.length }})</span>
+                </h3>
+                <FileSessionList
+                  :rows="history.sessions"
+                  :key-of="keyOf"
                   :slot-by-key="slotByKey"
                   :label-by-key="labelByKey"
-                  :row-by-key="rowByKey"
                   :selected-key="selectedKey"
                   @select="selectedKey = $event"
+                  @open="openDetail"
                 />
-                <p v-if="history.truncated" class="text-xs text-muted">
-                  Showing the first {{ history.lines.length }} of a longer file.
+                <p class="text-xs text-muted">
+                  Click a session to highlight its lines; the panel button opens its transcript and diff for this file.
+                  Attribution is per commit: a line belongs to a session when the commit that last changed it carries
+                  that session's checkpoint, even if it was edited by hand before committing.
                 </p>
-              </template>
-            </section>
+              </section>
+
+              <section class="space-y-2">
+                <h3 class="text-sm font-semibold text-highlighted">Line by line</h3>
+                <div v-if="!history.existsAtHead" class="text-sm text-muted py-6">
+                  This file no longer exists on <span class="font-mono">{{ history.branch }}</span>.
+                </div>
+                <div v-else-if="history.binary" class="text-sm text-muted py-6">Binary file: no line view.</div>
+                <template v-else>
+                  <FileBlameView
+                    :lines="history.lines"
+                    :line-key="lineKey"
+                    :slot-by-key="slotByKey"
+                    :label-by-key="labelByKey"
+                    :row-by-key="rowByKey"
+                    :selected-key="selectedKey"
+                    @select="selectedKey = $event"
+                  />
+                  <p v-if="history.truncated" class="text-xs text-muted">
+                    Showing the first {{ history.lines.length }} lines of a longer file.
+                  </p>
+                </template>
+              </section>
+            </template>
           </div>
-        </template>
+        </div>
       </div>
 
-      <CheckpointDetailSlideover v-model:open="detailOpen" :checkpoint="detailCheckpoint" />
+      <CheckpointDetailSlideover
+        v-model:open="detailOpen"
+        :checkpoint="detailCheckpoint"
+        :focus-session-id="detailSessionId"
+        :focus-file="path"
+      />
     </template>
   </UDashboardPanel>
 </template>

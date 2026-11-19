@@ -71,7 +71,18 @@ public final class AnthropicContentBlocks {
             if ("tool_result".equals(textOrNull(block, "type"))) {
                 String id = textOrNull(block, "tool_use_id");
                 JsonNode r = block.get("content");
-                String text = r == null ? "" : (r.isTextual() ? r.asText("") : r.toString());
+                String text;
+                if (r == null || r.isNull()) {
+                    text = "";
+                } else if (r.isTextual()) {
+                    text = r.asText("");
+                } else if (r.isArray()) {
+                    // Usually [{type:text,text:...}]; fall back to raw JSON for non-text blocks (images, ...)
+                    String joined = extractText(r);
+                    text = joined.isEmpty() ? r.toString() : joined;
+                } else {
+                    text = r.toString();
+                }
                 boolean isError = block.has("is_error") && block.get("is_error").asBoolean(false);
                 out.add(new ToolResultEntry(id == null ? "" : id, text, isError));
             }

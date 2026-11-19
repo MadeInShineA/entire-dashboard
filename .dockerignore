@@ -10,6 +10,7 @@ web/node_modules
 web/.output
 web/.nuxt
 web/.cache
+web/.pnpm-store
 
 # backend 
 server/.gradle

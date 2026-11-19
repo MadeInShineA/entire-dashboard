@@ -70,13 +70,9 @@ function onClick(row: Row) {
           ]"
         >
           <td
-            class="w-1 p-0"
-            :style="{ background: row.key != null ? sessionColorVar(slotByKey.get(row.key)) : 'transparent' }"
-            aria-hidden="true"
-          />
-          <td
             class="w-44 max-w-44 pl-2 pr-3 truncate select-none font-sans"
             :class="row.key != null ? 'text-default cursor-pointer' : 'text-dimmed'"
+            :style="{ borderLeft: `4px solid ${row.key != null ? sessionColorVar(slotByKey.get(row.key)) : 'transparent'}` }"
             :title="hoverText(row)"
             @click="onClick(row)"
           >

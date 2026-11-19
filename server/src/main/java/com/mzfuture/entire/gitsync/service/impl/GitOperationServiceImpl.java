@@ -252,7 +252,8 @@ public class GitOperationServiceImpl implements GitOperationService {
             CredentialsProvider credentials = parseCredentials(authUrl);
             List<RefSpec> refSpecs = new ArrayList<>();
             for (String branch : branchNames) {
-                refSpecs.add(new RefSpec("refs/heads/" + branch + ":refs/heads/" + branch));
+                // Force ("+"): a rewritten/force-pushed remote branch must replace the local copy
+                refSpecs.add(new RefSpec("+refs/heads/" + branch + ":refs/heads/" + branch));
             }
             try (Git git = Git.open(repoDir)) {
                 FetchCommand fetch = git.fetch()

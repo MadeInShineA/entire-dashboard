@@ -16,6 +16,8 @@ export interface ToolUse {
   tool: string
   input: unknown
   output?: unknown
+  /** Tool result reported an error */
+  error?: boolean
   title?: string
 }
 

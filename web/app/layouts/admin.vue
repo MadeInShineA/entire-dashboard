@@ -2,7 +2,9 @@
 import type { NavigationMenuItem } from '@nuxt/ui'
 
 const route = useRoute()
-const open = ref(true) // Expanded by default
+// Mobile drawer state (the desktop sidebar is always shown). Starting it open made an invisible
+// modal lock pointer events on wide screens.
+const open = ref(false)
 
 // Menu items configuration
 const items: NavigationMenuItem[] = [

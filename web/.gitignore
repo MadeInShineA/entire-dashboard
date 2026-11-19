@@ -22,3 +22,6 @@ logs
 .env
 .env.*
 !.env.example
+
+# pnpm store created by containerised dev runs
+.pnpm-store

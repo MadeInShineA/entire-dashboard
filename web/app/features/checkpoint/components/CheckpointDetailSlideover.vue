@@ -13,6 +13,10 @@ import type { ParsedTranscript } from '../utils/transcript-parser'
 
 const props = defineProps<{
   checkpoint: CheckpointDTO | null
+  /** Session (Session.id) to select when opening; defaults to the first one */
+  focusSessionId?: number | null
+  /** Repo-relative file to show the diff of when opening */
+  focusFile?: string | null
 }>()
 
 const open = defineModel<boolean>('open', { default: false })
@@ -38,14 +42,63 @@ watch(
     sessionsLoading.value = true
     try {
       sessions.value = await sessionApi.list(checkpoint.id)
-      selectedSessionIndex.value = 0
+      const focusIdx = props.focusSessionId != null
+        ? sessions.value.findIndex((s) => s.id === props.focusSessionId)
+        : -1
+      selectedSessionIndex.value = Math.max(focusIdx, 0)
       selectedFile.value = null
-      await loadTranscript(sessions.value[0]?.id)
+      await loadTranscript(sessions.value[selectedSessionIndex.value]?.id)
+      if (props.focusFile) {
+        selectedFile.value = matchTranscriptFile(props.focusFile)
+      }
     } finally {
       sessionsLoading.value = false
     }
   }
 )
+
+/// Transcript paths may be absolute or relative to the agent's cwd; repo paths are relative to the git root
+function pathsMatch(a: string, b: string): boolean {
+  return a === b || a.endsWith('/' + b) || b.endsWith('/' + a)
+}
+
+function matchTranscriptFile(repoPath: string): string | null {
+  const changes = parsedTranscript.value?.fileChanges ?? []
+  return changes.find((c) => c.file === repoPath)?.file
+    ?? changes.find((c) => pathsMatch(c.file, repoPath))?.file
+    ?? null
+}
+
+/// Map a transcript file path to the repo-relative path listed in the session's files_touched
+function toRepoPath(transcriptPath: string): string {
+  let touched: string[] = []
+  try {
+    touched = JSON.parse(selectedSession.value?.filesTouchedJson || '[]')
+  } catch {
+    touched = []
+  }
+  return touched.find((t) => t === transcriptPath)
+    ?? touched.find((t) => pathsMatch(transcriptPath, t))
+    ?? transcriptPath.replace(/^\/+/, '')
+}
+
+/// From an inline edit in the chat: switch to the session's full diff for that file
+function showDiffFor(rawPath: string) {
+  const match = matchTranscriptFile(rawPath)
+  if (match) selectedFile.value = match
+}
+
+function openInFiles(transcriptPath: string) {
+  if (!props.checkpoint) return
+  open.value = false
+  navigateTo({
+    path: '/admin/files',
+    query: {
+      repoId: String(props.checkpoint.repoId),
+      path: toRepoPath(transcriptPath),
+    },
+  })
+}
 
 async function loadTranscript(sessionId?: number) {
   if (!sessionId) {
@@ -183,9 +236,12 @@ const stepsLabel = (idx: number) => {
             </div>
             <div v-if="transcriptLoading" class="text-sm text-gray-500">Loading...</div>
             <div v-else-if="flatNodes.length" class="space-y-0">
-              <component
+              <div
                 v-for="{ node, depth } in flatNodes"
                 :key="node.fullPath || node.name"
+                class="group flex items-center min-w-0"
+              >
+              <component
                 :is="node.isFile ? 'button' : 'div'"
                 :type="node.isFile ? 'button' : undefined"
                 class="flex items-center gap-1.5 py-1 px-2 rounded-md text-sm min-w-0 w-full text-left transition-colors"
@@ -220,6 +276,18 @@ const stepsLabel = (idx: number) => {
                   +{{ node.additions ?? 0 }} -{{ node.deletions ?? 0 }}
                 </span>
               </component>
+              <UTooltip v-if="node.isFile" text="Open in Files: sessions and line-by-line history">
+                <UButton
+                  icon="i-lucide-file-search"
+                  size="xs"
+                  color="neutral"
+                  variant="ghost"
+                  class="shrink-0 opacity-60 group-hover:opacity-100"
+                  aria-label="Open in Files"
+                  @click="openInFiles(node.fullPath)"
+                />
+              </UTooltip>
+              </div>
             </div>
             <div v-else-if="!transcriptLoading" class="text-sm text-gray-500">
               No files
@@ -233,7 +301,15 @@ const stepsLabel = (idx: number) => {
             <UIcon name="i-lucide-loader-2" class="w-8 h-8 animate-spin text-primary" />
           </div>
 
-          <div v-else-if="selectedFile && parsedTranscript" class="flex-1 overflow-auto p-4">
+          <div v-else-if="selectedFile && parsedTranscript" class="flex-1 overflow-auto p-4 space-y-3">
+            <UButton
+              size="xs"
+              color="neutral"
+              variant="soft"
+              icon="i-lucide-arrow-left"
+              label="Back to conversation"
+              @click="selectedFile = null"
+            />
             <SessionFileDiffView
               :parsed="parsedTranscript"
               :file="selectedFile"
@@ -241,7 +317,11 @@ const stepsLabel = (idx: number) => {
           </div>
 
           <div v-else-if="parsedTranscript" class="flex-1 overflow-auto p-4">
-            <SessionTranscriptViewer :parsed="parsedTranscript" />
+            <SessionTranscriptViewer
+              :parsed="parsedTranscript"
+              @show-file-diff="showDiffFor"
+              @open-in-files="openInFiles"
+            />
           </div>
 
           <div v-else class="flex-1 flex items-center justify-center p-8 text-gray-500">

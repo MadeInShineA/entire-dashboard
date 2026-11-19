@@ -2,6 +2,7 @@ package com.mzfuture.entire.checkpoint.transcript.format;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.TextNode;
 import com.mzfuture.entire.checkpoint.dto.response.NormalizedTranscriptDTO;
 import com.mzfuture.entire.checkpoint.dto.response.NormalizedTranscriptMetaDTO;
 import com.mzfuture.entire.checkpoint.dto.response.TranscriptFileChangeSummaryDTO;
@@ -59,6 +60,7 @@ public class ClaudeCodeFormat implements TranscriptFormat {
         // Streaming dedup: order-preserving map from message.id -> index in messages.
         // When a new id arrives, the previous id is already merged.
         Map<String, Integer> idToIndex = new HashMap<>();
+        Map<String, TranscriptToolUseDTO> toolsById = new HashMap<>();
         List<TranscriptMessageViewDTO> messages = new ArrayList<>();
         int stepsCount = 0;
         String projectRoot = extractCwd(raw);
@@ -77,22 +79,39 @@ public class ClaudeCodeFormat implements TranscriptFormat {
             JsonNode message = n.path("message");
             String messageId = textOrNull(message, "id");
 
+            // Tool results arrive as "user" lines: attach each one to the tool call it answers
+            // (output + error flag) instead of rendering it as a separate, empty user message.
+            if ("user".equals(type)) {
+                JsonNode content = message.path("content");
+                List<AnthropicContentBlocks.ToolResultEntry> results = AnthropicContentBlocks.extractToolResults(content);
+                for (AnthropicContentBlocks.ToolResultEntry r : results) {
+                    TranscriptToolUseDTO tu = toolsById.get(r.id());
+                    if (tu != null) {
+                        tu.setOutput(TextNode.valueOf(r.text()));
+                        if (r.isError()) tu.setError(true);
+                    }
+                }
+                if (!results.isEmpty() && AnthropicContentBlocks.extractText(content).isEmpty()) {
+                    continue;
+                }
+            }
+
+            TranscriptMessageViewDTO target;
             if (messageId != null && idToIndex.containsKey(messageId)) {
-                int idx = idToIndex.get(messageId);
-                mergeInto(messages.get(idx), n);
+                target = messages.get(idToIndex.get(messageId));
+                mergeInto(target, n);
             } else {
-                TranscriptMessageViewDTO mv = buildMessage(n, type);
-                messages.add(mv);
+                target = buildMessage(n, type);
+                messages.add(target);
                 if (messageId != null) idToIndex.put(messageId, messages.size() - 1);
-                if ("user".equalsIgnoreCase(mv.getRole())) stepsCount++;
+                if ("user".equalsIgnoreCase(target.getRole())) stepsCount++;
+            }
+            if (target.getTools() != null) {
+                for (TranscriptToolUseDTO tu : target.getTools()) {
+                    if (tu.getCallID() != null && !tu.getCallID().isEmpty()) toolsById.putIfAbsent(tu.getCallID(), tu);
+                }
             }
         }
-
-        // Note on tool_result folding: when a user line carries tool_result content blocks,
-        // we could backfill the matching assistant tool_use.output. We don't, because
-        // `buildMessage` already folded the tool_result text into the user message's `text`
-        // field. The result is visible in the user turn; matching it back to a tool card on
-        // a prior assistant turn is a follow-up enhancement.
 
         List<TranscriptFileChangeSummaryDTO> fileChanges = buildFileChanges(messages);
 

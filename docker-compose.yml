@@ -26,7 +26,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    image: ghcr.io/sunmh207/entire-dashboard:0.1.7
+    image: localhost/entire-dashboard:local
     container_name: entire-dashboard
     ports:
       - "8081:80"

@@ -25,6 +25,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -33,7 +34,8 @@ import java.util.regex.Pattern;
 @Service
 public class CheckpointSyncServiceImpl implements CheckpointSyncService {
 
-    private static final Pattern TRAILER_PATTERN = Pattern.compile("Entire-Checkpoint:\\s*([0-9a-f]{12})", Pattern.CASE_INSENSITIVE);
+    /// Legacy CLI ids are 12 hex chars (e.g. c14692dbdbc6); CLI 0.13+ uses 26-char ULIDs (e.g. 01M7TAEQCJ7PEWZ0R86Y40ER61)
+    private static final Pattern TRAILER_PATTERN = Pattern.compile("Entire-Checkpoint:\\s*([0-9A-Za-z]{12,32})\\b", Pattern.CASE_INSENSITIVE);
 
     private final RepoRepository repoRepository;
     private final CheckpointSyncStateRepository syncStateRepository;
@@ -74,14 +76,22 @@ public class CheckpointSyncServiceImpl implements CheckpointSyncService {
             log.warn("Checkpoint sync: repo not found, repoId={}", repoId);
             return;
         }
+        // Entire CLI stores checkpoints either on a legacy metadata branch (entire/checkpoints/v1)
+        // or, since CLI 0.13 by default, as one ref per checkpoint under refs/entire/checkpoints/.
+        // Support both; a repo may even have both if it switched backends.
         String metadataBranch = syncProperties.getBranch();
+        boolean hasMetadataBranch;
+        boolean hasCheckpointRefs;
         try {
-            if (!remoteHasBranch(repoId, metadataBranch)) {
-                log.info("Checkpoint sync: repo {} has no metadata branch {}, skip", repoId, metadataBranch);
-                return;
-            }
+            hasMetadataBranch = remoteHasBranch(repoId, metadataBranch);
+            hasCheckpointRefs = !gitSyncService.listRemoteRefs(repoId, CheckpointGitReader.CHECKPOINT_REFS_PREFIX).isEmpty();
         } catch (Exception e) {
-            log.warn("Checkpoint sync: list branches failed for repoId={}, error={}", repoId, e.getMessage());
+            log.warn("Checkpoint sync: list remote refs failed for repoId={}, error={}", repoId, e.getMessage());
+            return;
+        }
+        if (!hasMetadataBranch && !hasCheckpointRefs) {
+            log.info("Checkpoint sync: repo {} has neither metadata branch {} nor {} refs, skip",
+                    repoId, metadataBranch, CheckpointGitReader.CHECKPOINT_REFS_PREFIX);
             return;
         }
 
@@ -92,20 +102,33 @@ public class CheckpointSyncServiceImpl implements CheckpointSyncService {
             return;
         }
 
-        // Fetch metadata branch to latest before walking content branches, read latest metadata from this branch when parsing checkpoints
-        try {
-            gitSyncService.fetchMetadataBranch(repoId, metadataBranch);
-        } catch (Exception e) {
-            log.error("Checkpoint sync: fetch metadata branch failed, repoId={}, branch={}, error={}", repoId, metadataBranch, e.getMessage(), e);
+        // Fetch checkpoint metadata to latest before walking content branches
+        String metadataRevision = null;
+        if (hasMetadataBranch) {
+            try {
+                gitSyncService.fetchMetadataBranch(repoId, metadataBranch);
+            } catch (Exception e) {
+                log.error("Checkpoint sync: fetch metadata branch failed, repoId={}, branch={}, error={}", repoId, metadataBranch, e.getMessage(), e);
+                return;
+            }
+            metadataRevision = gitReader.resolveBranchCommitSha(repoId, metadataBranch).orElse(null);
+            if (metadataRevision == null) {
+                log.warn("Checkpoint sync: metadata branch has no commit or not found, repoId={}, branch={}", repoId, metadataBranch);
+            }
+        }
+        if (hasCheckpointRefs) {
+            try {
+                gitSyncService.fetchRefsByPrefix(repoId, CheckpointGitReader.CHECKPOINT_REFS_PREFIX);
+            } catch (Exception e) {
+                log.error("Checkpoint sync: fetch checkpoint refs failed, repoId={}, error={}", repoId, e.getMessage(), e);
+                return;
+            }
+        }
+        Map<String, String> checkpointRefs = gitReader.listCheckpointRefs(repoId);
+        if (metadataRevision == null && checkpointRefs.isEmpty()) {
+            log.warn("Checkpoint sync: no checkpoint metadata available locally, repoId={}", repoId);
             return;
         }
-
-        Optional<String> metadataRevOpt = gitReader.resolveBranchCommitSha(repoId, metadataBranch);
-        if (metadataRevOpt.isEmpty()) {
-            log.warn("Checkpoint sync: metadata branch has no commit or not found, repoId={}, branch={}", repoId, metadataBranch);
-            return;
-        }
-        String metadataRevision = metadataRevOpt.get();
 
         List<String> contentBranches = gitReader.listLocalBranchNames(repoId).stream()
                 .filter(b -> !metadataBranch.equals(b))
@@ -131,8 +154,15 @@ public class CheckpointSyncServiceImpl implements CheckpointSyncService {
             if (checkpointId == null) {
                 continue;
             }
-            String path = checkpointId.substring(0, 2) + "/" + checkpointId.substring(2) + "/metadata.json";
-            Optional<String> metaOpt = gitReader.getFileContent(repoId, metadataRevision, path);
+            Optional<CheckpointGitReader.CheckpointLocation> locOpt =
+                    CheckpointGitReader.locateCheckpoint(checkpointId, checkpointRefs, metadataRevision);
+            if (locOpt.isEmpty()) {
+                log.debug("Checkpoint storage not found: repoId={}, commit={}, checkpointId={}", repoId, commit.commitSha(), checkpointId);
+                continue;
+            }
+            String checkpointRevision = locOpt.get().revision();
+            String path = locOpt.get().basePath() + "metadata.json";
+            Optional<String> metaOpt = gitReader.getFileContent(repoId, checkpointRevision, path);
             if (metaOpt.isEmpty()) {
                 log.debug("Checkpoint metadata not found: repoId={}, commit={}, path={}", repoId, commit.commitSha(), path);
                 continue;
@@ -144,12 +174,12 @@ public class CheckpointSyncServiceImpl implements CheckpointSyncService {
             }
             String lastSessionPath = metadataParser.getLastSessionMetadataPath(metaJson);
             if (StrUtil.isNotBlank(lastSessionPath)) {
-                Optional<String> sessionMeta = gitReader.getFileContent(repoId, metadataRevision, lastSessionPath);
+                Optional<String> sessionMeta = gitReader.getFileContent(repoId, checkpointRevision, lastSessionPath);
                 parsed.setAgent(sessionMeta.map(metadataParser::parseSessionAgent).orElse(null));
             }
             CheckpointGitReader.LineStats lineStats = gitReader.getCommitLineStats(repoId, commit.commitSha()).orElse(null);
             Checkpoint savedCheckpoint = upsertCheckpoint(repoId, commit.commitSha(), commit.fullMessage(), commit.authorName(), commit.commitTime(), parsed, lineStats);
-            upsertSessionsForCheckpoint(repoId, metadataRevision, metaJson, savedCheckpoint.getId());
+            upsertSessionsForCheckpoint(repoId, checkpointRevision, metaJson, savedCheckpoint.getId());
         }
 
         // Consistency: update state by branch only after all success (within transaction, any step failure rolls back entirely)

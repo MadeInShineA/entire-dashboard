@@ -269,6 +269,64 @@ public class GitOperationServiceImpl implements GitOperationService {
     }
 
     @Override
+    public void fetchRefSpecs(Long repoId, String authUrl, List<String> refSpecs) {
+        if (refSpecs == null || refSpecs.isEmpty()) {
+            return;
+        }
+        ReentrantLock lock = getRepoLock(repoId);
+        lock.lock();
+        try {
+            String localPath = getLocalRepositoryPath(repoId);
+            File repoDir = new File(localPath);
+            if (!repoDir.exists() || !new File(repoDir, ".git").exists()) {
+                throw Errors.INTERNAL_ERROR.toException("Local repository does not exist: " + localPath);
+            }
+            CredentialsProvider credentials = parseCredentials(authUrl);
+            List<RefSpec> specs = refSpecs.stream().map(RefSpec::new).toList();
+            try (Git git = Git.open(repoDir)) {
+                FetchCommand fetch = git.fetch()
+                        .setRemote("origin")
+                        .setRefSpecs(specs)
+                        .setRemoveDeletedRefs(true)
+                        .setTimeout(gitProperties.getTimeoutSeconds());
+                if (credentials != null) {
+                    fetch.setCredentialsProvider(credentials);
+                }
+                fetch.call();
+                log.info("Fetch refspecs completed: repoId={}, refSpecs={}", repoId, refSpecs);
+            }
+        } catch (IOException | GitAPIException e) {
+            log.error("Failed to fetch refspecs: repoId={}, error={}", repoId, e.getMessage(), e);
+            throw Errors.INTERNAL_ERROR.toException("Failed to fetch refs: " + e.getMessage());
+        } finally {
+            lock.unlock();
+        }
+    }
+
+    @Override
+    public List<String> listRemoteRefs(String authUrl, String prefix) {
+        try {
+            CredentialsProvider credentials = parseCredentials(authUrl);
+            // heads=false and tags=false means no filtering: every advertised ref is returned
+            Collection<Ref> refs = Git.lsRemoteRepository()
+                    .setRemote(authUrl)
+                    .setCredentialsProvider(credentials)
+                    .setHeads(false)
+                    .setTags(false)
+                    .setTimeout(gitProperties.getTimeoutSeconds())
+                    .call();
+            return refs.stream()
+                    .map(Ref::getName)
+                    .filter(name -> prefix == null || name.startsWith(prefix))
+                    .sorted()
+                    .collect(Collectors.toList());
+        } catch (GitAPIException e) {
+            log.error("Failed to list remote refs: prefix={}, error={}", prefix, e.getMessage(), e);
+            throw Errors.INTERNAL_ERROR.toException("Failed to list remote refs: " + e.getMessage());
+        }
+    }
+
+    @Override
     public List<String> listRemoteBranches(String authUrl) {
         try {
             CredentialsProvider credentials = parseCredentials(authUrl);

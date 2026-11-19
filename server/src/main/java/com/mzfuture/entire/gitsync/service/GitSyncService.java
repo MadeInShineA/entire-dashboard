@@ -6,6 +6,8 @@ import com.mzfuture.entire.gitsync.dto.response.GitBranchesDTO;
 import com.mzfuture.entire.gitsync.dto.response.GitSyncResult;
 import com.mzfuture.entire.gitsync.dto.response.TokenValidateResult;
 
+import java.util.List;
+
 /// Git sync service interface
 /// Provides high-level sync functionality including retry, error handling, etc.
 public interface GitSyncService {
@@ -49,6 +51,19 @@ public interface GitSyncService {
     /// @param repoId repository ID
     /// @param metadataBranch metadata branch name (e.g., entire/checkpoints/v1)
     void fetchMetadataBranch(Long repoId, String metadataBranch);
+
+    /// List remote ref names under a prefix (e.g. "refs/entire/checkpoints/", used by the Entire CLI "refs" checkpoint backend)
+    ///
+    /// @param repoId repository ID
+    /// @param prefix ref prefix, must end with "/"
+    /// @return full ref names
+    List<String> listRemoteRefs(Long repoId, String prefix);
+
+    /// Fetch (force-update and prune) every remote ref under a prefix into the same local namespace
+    ///
+    /// @param repoId repository ID
+    /// @param prefix ref prefix, must end with "/"
+    void fetchRefsByPrefix(Long repoId, String prefix);
 
     /// Validate access token validity (calls platform API)
     ///

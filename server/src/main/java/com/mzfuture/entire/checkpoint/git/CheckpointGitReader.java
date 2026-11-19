@@ -31,7 +31,9 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
@@ -194,6 +196,59 @@ public class CheckpointGitReader {
             return Optional.empty();
         }
     }
+
+    /// Ref namespace used by the Entire CLI "refs" checkpoint backend (default since CLI 0.13):
+    /// one commit per checkpoint at refs/entire/checkpoints/<shard>/<checkpointId>, files at the tree root.
+    public static final String CHECKPOINT_REFS_PREFIX = "refs/entire/checkpoints/";
+
+    /// List local checkpoint refs (refs backend), keyed by checkpoint id (last path segment of the ref).
+    /// @return map checkpointId -> commit SHA; empty if none or on error
+    public Map<String, String> listCheckpointRefs(Long repoId) {
+        File repoDir = new File(gitOperationService.getLocalRepositoryPath(repoId));
+        if (!repoDir.exists() || !new File(repoDir, ".git").exists()) {
+            return Collections.emptyMap();
+        }
+        try (Repository repository = openRepository(repoDir)) {
+            Map<String, String> result = new HashMap<>();
+            for (Ref ref : repository.getRefDatabase().getRefsByPrefix(CHECKPOINT_REFS_PREFIX)) {
+                if (ref.getObjectId() == null) {
+                    continue;
+                }
+                String name = ref.getName();
+                result.put(name.substring(name.lastIndexOf('/') + 1), ref.getObjectId().getName());
+            }
+            return result;
+        } catch (IOException e) {
+            log.warn("List checkpoint refs failed: repoId={}, error={}", repoId, e.getMessage());
+            return Collections.emptyMap();
+        }
+    }
+
+    /// Locate where a checkpoint's files live. Prefers the refs backend
+    /// (refs/entire/checkpoints/<shard>/<id>, files at tree root), then falls back to the legacy
+    /// branch backend (single metadata branch, files under <id[0:2]>/<id[2:]>/).
+    /// @param checkpointRefs result of {@link #listCheckpointRefs(Long)} (may be empty)
+    /// @param metadataBranchSha commit SHA of the legacy metadata branch, or null if absent
+    public static Optional<CheckpointLocation> locateCheckpoint(String checkpointId,
+                                                                Map<String, String> checkpointRefs,
+                                                                String metadataBranchSha) {
+        if (checkpointId == null || checkpointId.length() < 3) {
+            return Optional.empty();
+        }
+        String refSha = checkpointRefs.get(checkpointId);
+        if (refSha != null) {
+            return Optional.of(new CheckpointLocation(refSha, ""));
+        }
+        if (metadataBranchSha != null) {
+            return Optional.of(new CheckpointLocation(metadataBranchSha,
+                    checkpointId.substring(0, 2) + "/" + checkpointId.substring(2) + "/"));
+        }
+        return Optional.empty();
+    }
+
+    /// Revision holding a checkpoint's files and the directory prefix (empty or ending with "/") of its
+    /// top-level metadata.json within that revision.
+    public record CheckpointLocation(String revision, String basePath) {}
 
     /// Get line addition/deletion stats for a commit (diff against first parent).
     /// Root commit returns LineStats(0, 0). Merge commits use first parent only.

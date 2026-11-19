@@ -11,7 +11,7 @@ import lombok.Setter;
 @Entity
 public class Checkpoint extends BaseEntity {
 
-    /// 12-digit hex checkpoint identifier
+    /// Checkpoint identifier: 12-char hex (legacy CLI) or 26-char ULID (CLI 0.13+)
     private String checkpointId;
 
     /// Repository ID

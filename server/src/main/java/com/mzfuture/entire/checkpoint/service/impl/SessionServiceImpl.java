@@ -79,14 +79,15 @@ public class SessionServiceImpl implements SessionService {
         if (pathSuffix == null) {
             return Optional.empty();
         }
-        String path = checkpoint.getCheckpointId().substring(0, 2) + "/" + checkpoint.getCheckpointId().substring(2)
-                + "/" + session.getSessionIndex() + "/" + pathSuffix;
-        String revision = syncProperties.getBranch();
-        Optional<String> revOpt = gitReader.resolveBranchCommitSha(checkpoint.getRepoId(), revision);
-        if (revOpt.isEmpty()) {
+        Long repoId = checkpoint.getRepoId();
+        String metadataBranchSha = gitReader.resolveBranchCommitSha(repoId, syncProperties.getBranch()).orElse(null);
+        Optional<CheckpointGitReader.CheckpointLocation> locOpt = CheckpointGitReader.locateCheckpoint(
+                checkpoint.getCheckpointId(), gitReader.listCheckpointRefs(repoId), metadataBranchSha);
+        if (locOpt.isEmpty()) {
             return Optional.empty();
         }
-        return gitReader.getFileContent(checkpoint.getRepoId(), revOpt.get(), path);
+        String path = locOpt.get().basePath() + session.getSessionIndex() + "/" + pathSuffix;
+        return gitReader.getFileContent(repoId, locOpt.get().revision(), path);
     }
 
     @Override

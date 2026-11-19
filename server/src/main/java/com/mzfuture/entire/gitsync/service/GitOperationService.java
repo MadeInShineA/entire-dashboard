@@ -68,4 +68,19 @@ public interface GitOperationService {
     /// @param authUrl URL with authentication
     /// @param branchNames List of branch names to fetch
     void fetchBranches(Long repoId, String authUrl, java.util.List<String> branchNames);
+
+    /// Fetch arbitrary refspecs on an existing local repository
+    /// (e.g. "+refs/entire/checkpoints/*:refs/entire/checkpoints/*")
+    ///
+    /// @param repoId Repository ID
+    /// @param authUrl URL with authentication
+    /// @param refSpecs Refspecs to fetch
+    void fetchRefSpecs(Long repoId, String authUrl, java.util.List<String> refSpecs);
+
+    /// List full ref names on the remote starting with the given prefix (e.g. "refs/entire/checkpoints/")
+    ///
+    /// @param authUrl URL with authentication
+    /// @param prefix Ref name prefix
+    /// @return Full ref names
+    java.util.List<String> listRemoteRefs(String authUrl, String prefix);
 }

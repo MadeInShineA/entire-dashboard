@@ -276,6 +276,31 @@ public class GitSyncServiceImpl implements GitSyncService {
     }
 
     @Override
+    public List<String> listRemoteRefs(Long repoId, String prefix) {
+        return gitOperationService.listRemoteRefs(buildAuthUrl(repoId), prefix);
+    }
+
+    @Override
+    public void fetchRefsByPrefix(Long repoId, String prefix) {
+        String refSpec = "+" + prefix + "*:" + prefix + "*";
+        gitOperationService.fetchRefSpecs(repoId, buildAuthUrl(repoId), List.of(refSpec));
+        log.debug("refs fetched to latest: repoId={}, refSpec={}", repoId, refSpec);
+    }
+
+    private String buildAuthUrl(Long repoId) {
+        Repo repo = repoRepository.findById(repoId)
+                .orElseThrow(() -> Errors.NOT_FOUND.toException("Repository does not exist: " + repoId));
+        GitPlatformAdapter adapter = platformAdapters.get(repo.getPlatform());
+        if (adapter == null) {
+            throw Errors.INTERNAL_ERROR.toException("Unsupported platform type: " + repo.getPlatform());
+        }
+        if (StrUtil.isBlank(repo.getAccessToken())) {
+            throw Errors.INTERNAL_ERROR.toException("Access token cannot be empty");
+        }
+        return adapter.buildAuthUrl(repo.getWebUrl(), repo.getAccessToken());
+    }
+
+    @Override
     public TokenValidateResult validateToken(TokenValidateParams params) {
         GitPlatformAdapter adapter = platformAdapters.get(params.getPlatform());
         if (adapter == null) {

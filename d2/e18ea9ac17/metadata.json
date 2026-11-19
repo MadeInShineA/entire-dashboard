@@ -1,0 +1,43 @@
+{
+  "cli_version": "0.13.2",
+  "checkpoint_id": "d2e18ea9ac17",
+  "strategy": "manual-commit",
+  "branch": "main",
+  "checkpoints_count": 2,
+  "files_touched": [
+    "web/app/features/checkpoint/components/CheckpointDetailSlideover.vue",
+    "web/app/features/checkpoint/components/SessionTranscriptViewer.vue",
+    "web/app/features/checkpoint/components/ToolEditDiff.vue",
+    "web/app/features/checkpoint/utils/tool-edits.ts"
+  ],
+  "sessions": [
+    {
+      "metadata": "/d2/e18ea9ac17/0/metadata.json",
+      "transcript": "/d2/e18ea9ac17/0/full.jsonl",
+      "compact_transcript": "/d2/e18ea9ac17/0/transcript.jsonl",
+      "content_hash": "/d2/e18ea9ac17/0/content_hash.txt",
+      "prompt": "/d2/e18ea9ac17/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 64,
+    "cache_creation_tokens": 47492,
+    "cache_read_tokens": 10634025,
+    "output_tokens": 24902,
+    "api_call_count": 30
+  },
+  "redaction": {
+    "replacements": 159,
+    "layers": {
+      "betterleaks": 152,
+      "connection_string": 0,
+      "credential_key": 0,
+      "credential_value": 4,
+      "credentialed_uri": 2,
+      "entropy": 11,
+      "key_context": 0,
+      "provider_token": 0,
+      "shell_stdin": 0
+    }
+  }
+}

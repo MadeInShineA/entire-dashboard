@@ -1,0 +1,40 @@
+{
+  "cli_version": "0.13.2",
+  "checkpoint_id": "67a74b6bf934",
+  "strategy": "manual-commit",
+  "branch": "main",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "docker-compose.yml"
+  ],
+  "sessions": [
+    {
+      "metadata": "/67/a74b6bf934/0/metadata.json",
+      "transcript": "/67/a74b6bf934/0/full.jsonl",
+      "compact_transcript": "/67/a74b6bf934/0/transcript.jsonl",
+      "content_hash": "/67/a74b6bf934/0/content_hash.txt",
+      "prompt": "/67/a74b6bf934/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 12,
+    "cache_creation_tokens": 3283,
+    "cache_read_tokens": 696593,
+    "output_tokens": 2416,
+    "api_call_count": 5
+  },
+  "redaction": {
+    "replacements": 25,
+    "layers": {
+      "betterleaks": 22,
+      "connection_string": 0,
+      "credential_key": 0,
+      "credential_value": 0,
+      "credentialed_uri": 2,
+      "entropy": 3,
+      "key_context": 0,
+      "provider_token": 0,
+      "shell_stdin": 0
+    }
+  }
+}

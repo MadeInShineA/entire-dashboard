@@ -1,0 +1,1 @@
+Can you put the docker compose to the ghcr of my fork ? The worklow is as follow: Team mates and teacher clone the repo, do git submodule sync and then cd entire-dashboard docker compose up -d so no need to publish to docker hub or anything

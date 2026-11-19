@@ -1,0 +1,43 @@
+{
+  "cli_version": "0.13.2",
+  "checkpoint_id": "2e16335c31d3",
+  "strategy": "manual-commit",
+  "branch": "main",
+  "checkpoints_count": 2,
+  "files_touched": [
+    "server/src/main/java/com/mzfuture/entire/checkpoint/transcript/format/ClaudeCodeFormat.java",
+    "server/src/main/java/com/mzfuture/entire/checkpoint/transcript/support/AnthropicContentBlocks.java",
+    "server/src/test/java/com/mzfuture/entire/checkpoint/transcript/ClaudeCodeToolOutputTest.java",
+    "web/app/features/checkpoint/components/SessionTranscriptViewer.vue"
+  ],
+  "sessions": [
+    {
+      "metadata": "/2e/16335c31d3/0/metadata.json",
+      "transcript": "/2e/16335c31d3/0/full.jsonl",
+      "compact_transcript": "/2e/16335c31d3/0/transcript.jsonl",
+      "content_hash": "/2e/16335c31d3/0/content_hash.txt",
+      "prompt": "/2e/16335c31d3/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 38,
+    "cache_creation_tokens": 28242,
+    "cache_read_tokens": 5764837,
+    "output_tokens": 14906,
+    "api_call_count": 18
+  },
+  "redaction": {
+    "replacements": 117,
+    "layers": {
+      "betterleaks": 110,
+      "connection_string": 0,
+      "credential_key": 0,
+      "credential_value": 4,
+      "credentialed_uri": 2,
+      "entropy": 11,
+      "key_context": 0,
+      "provider_token": 0,
+      "shell_stdin": 0
+    }
+  }
+}

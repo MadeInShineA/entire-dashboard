@@ -3,7 +3,7 @@
   "checkpoint_id": "057730685065",
   "strategy": "manual-commit",
   "branch": "main",
-  "checkpoints_count": 4,
+  "checkpoints_count": 5,
   "files_touched": [
     "server/src/main/java/com/mzfuture/entire/checkpoint/entity/Checkpoint.java",
     "server/src/main/java/com/mzfuture/entire/checkpoint/git/CheckpointGitReader.java",
@@ -23,14 +23,21 @@
       "compact_transcript": "/05/7730685065/0/transcript.jsonl",
       "content_hash": "/05/7730685065/0/content_hash.txt",
       "prompt": "/05/7730685065/0/prompt.txt"
+    },
+    {
+      "metadata": "/05/7730685065/1/metadata.json",
+      "transcript": "/05/7730685065/1/full.jsonl",
+      "compact_transcript": "/05/7730685065/1/transcript.jsonl",
+      "content_hash": "/05/7730685065/1/content_hash.txt",
+      "prompt": "/05/7730685065/1/prompt.txt"
     }
   ],
   "token_usage": {
-    "input_tokens": 120,
-    "cache_creation_tokens": 108430,
-    "cache_read_tokens": 5356285,
-    "output_tokens": 34194,
-    "api_call_count": 55
+    "input_tokens": 136,
+    "cache_creation_tokens": 129080,
+    "cache_read_tokens": 5652558,
+    "output_tokens": 36329,
+    "api_call_count": 62
   },
   "redaction": {
     "replacements": 25,

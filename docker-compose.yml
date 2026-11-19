@@ -29,7 +29,7 @@ services:
     image: ghcr.io/sunmh207/entire-dashboard:0.1.7
     container_name: entire-dashboard
     ports:
-      - "81:80"
+      - "8081:80"
     environment:
       DB_HOST: mysql
       DB_PORT: "3306"

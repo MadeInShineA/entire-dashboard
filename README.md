@@ -93,7 +93,7 @@ Use Docker Compose to quickly start the frontend, backend, and database without 
    docker compose up -d
    ```
 
-3. **Access dashboard**: Open [http://localhost:81](http://localhost:81) in your browser.
+3. **Access dashboard**: Open [http://localhost:8081](http://localhost:81) in your browser.
 
 4. **Login**: Default username is `admin`, default password is `admin`.
 

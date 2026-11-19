@@ -23,4 +23,7 @@ public interface CheckpointService {
     List<RepoOptionDTO> getReposForFilter(CheckpointFilterParams params);
 
     List<String> getCommitAuthorsForFilter(CheckpointFilterParams params);
+
+    /// Map entities to DTOs, including the platform commit URL
+    List<CheckpointDTO> toDTOs(List<com.mzfuture.entire.checkpoint.entity.Checkpoint> checkpoints);
 }

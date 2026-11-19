@@ -39,6 +39,17 @@ const items: NavigationMenuItem[] = [
       }
     },
   },
+  {
+    label: 'Files',
+    icon: 'i-lucide-file-search',
+    to: '/admin/files',
+    exact: false,
+    onSelect: () => {
+      if (import.meta.client && window.innerWidth < 1024) {
+        open.value = false
+      }
+    },
+  },
 ]
 
 // Listen to route changes, auto close sidebar on mobile

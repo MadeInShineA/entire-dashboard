@@ -95,6 +95,10 @@ public class CheckpointSyncServiceImpl implements CheckpointSyncService {
             return;
         }
 
+        // A shallow clone is replaced by a full one during git sync; walk everything again in that case
+        if (gitReader.isShallow(repoId) && syncProperties.getCloneDepth() == 0) {
+            fullScan = true;
+        }
         try {
             gitSyncService.syncRepositoryAllBranchesForCheckpoint(repoId, metadataBranch, syncProperties.getCloneDepth());
         } catch (Exception e) {

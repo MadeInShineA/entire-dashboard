@@ -27,3 +27,28 @@
         display: none; /* Chrome, Safari and Opera */
     }
 }
+
+/* File history: categorical session palette (fixed order, validated light #ffffff / dark #0f172a) */
+:root {
+    --session-1: #2a78d6;
+    --session-2: #eb6834;
+    --session-3: #1baf7a;
+    --session-4: #eda100;
+    --session-5: #e87ba4;
+    --session-6: #008300;
+    --session-7: #6250d6;
+    --session-8: #e34948;
+    --session-other: #94a3b8;
+}
+
+.dark {
+    --session-1: #3987e5;
+    --session-2: #d95926;
+    --session-3: #199e70;
+    --session-4: #c98500;
+    --session-5: #d55181;
+    --session-6: #008300;
+    --session-7: #9085e9;
+    --session-8: #e66767;
+    --session-other: #64748b;
+}

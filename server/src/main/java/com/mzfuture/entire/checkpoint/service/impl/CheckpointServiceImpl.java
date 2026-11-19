@@ -158,6 +158,13 @@ public class CheckpointServiceImpl implements CheckpointService {
     }
 
     @Override
+    public List<CheckpointDTO> toDTOs(List<Checkpoint> checkpoints) {
+        List<CheckpointDTO> rows = checkpointMapper.toRows(checkpoints);
+        enrichCommitUrls(rows);
+        return rows;
+    }
+
+    @Override
     public List<String> getCommitAuthorsForFilter(CheckpointFilterParams params) {
         return filterRepository.findDistinctCommitAuthors(params);
     }

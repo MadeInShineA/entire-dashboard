@@ -45,7 +45,7 @@ public class GitOperationServiceImpl implements GitOperationService {
 
     @Override
     public String cloneRepository(Long repoId, String authUrl, String branch) {
-        return cloneRepository(repoId, authUrl, branch, 0);
+        return cloneRepository(repoId, authUrl, branch, -1);
     }
 
     @Override
@@ -64,7 +64,7 @@ public class GitOperationServiceImpl implements GitOperationService {
             // Create directory
             repoDir.mkdirs();
 
-            int effectiveDepth = depth <= 0 ? gitProperties.getCloneDepth() : depth;
+            int effectiveDepth = depth < 0 ? gitProperties.getCloneDepth() : depth;
             log.info("Starting to clone repository: repoId={}, branch={}, path={}, depth={}", repoId, branch, localPath, effectiveDepth);
 
             // Parse token for authentication
@@ -199,6 +199,11 @@ public class GitOperationServiceImpl implements GitOperationService {
         File repoDir = new File(localPath);
         File gitDir = new File(localPath + "/.git");
         return repoDir.exists() && gitDir.exists();
+    }
+
+    @Override
+    public boolean isShallow(Long repoId) {
+        return new File(getLocalRepositoryPath(repoId), ".git/shallow").exists();
     }
 
     @Override

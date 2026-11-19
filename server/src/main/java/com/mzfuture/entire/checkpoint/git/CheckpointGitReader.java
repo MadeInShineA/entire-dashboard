@@ -2,6 +2,10 @@ package com.mzfuture.entire.checkpoint.git;
 
 import com.mzfuture.entire.gitsync.service.GitOperationService;
 import lombok.extern.slf4j.Slf4j;
+import org.eclipse.jgit.api.Git;
+import org.eclipse.jgit.api.errors.GitAPIException;
+import org.eclipse.jgit.blame.BlameResult;
+import org.eclipse.jgit.lib.FileMode;
 import org.eclipse.jgit.diff.DiffAlgorithm;
 import org.eclipse.jgit.diff.DiffEntry;
 import org.eclipse.jgit.diff.DiffFormatter;
@@ -197,6 +201,112 @@ public class CheckpointGitReader {
         }
     }
 
+    /// List every file path (recursive) at the head of a local branch. Submodules (gitlinks) are
+    /// reported separately: they have no blame-able content.
+    /// @return sorted repo-relative paths; empty if branch not found
+    public BranchFiles listFiles(Long repoId, String branchName) {
+        BranchFiles empty = new BranchFiles(Collections.emptyList(), Collections.emptySet());
+        File repoDir = new File(gitOperationService.getLocalRepositoryPath(repoId));
+        if (!repoDir.exists() || !new File(repoDir, ".git").exists()) {
+            return empty;
+        }
+        String refName = branchName.startsWith("refs/heads/") ? branchName : "refs/heads/" + branchName;
+        try (Repository repository = openRepository(repoDir);
+             RevWalk walk = new RevWalk(repository)) {
+            ObjectId head = resolveBranchToCommit(repository, refName);
+            if (head == null) {
+                return empty;
+            }
+            List<String> files = new ArrayList<>();
+            java.util.Set<String> submodules = new java.util.HashSet<>();
+            try (TreeWalk treeWalk = new TreeWalk(repository)) {
+                treeWalk.addTree(walk.parseCommit(head).getTree());
+                treeWalk.setRecursive(true);
+                while (treeWalk.next()) {
+                    if (treeWalk.getFileMode(0) == FileMode.GITLINK) {
+                        submodules.add(treeWalk.getPathString());
+                    } else {
+                        files.add(treeWalk.getPathString());
+                    }
+                }
+            }
+            Collections.sort(files);
+            return new BranchFiles(files, submodules);
+        } catch (IOException e) {
+            log.warn("List files failed: repoId={}, branch={}, error={}", repoId, branchName, e.getMessage());
+            return empty;
+        }
+    }
+
+    /// Regular files and submodule paths at a branch head
+    public record BranchFiles(List<String> files, java.util.Set<String> submodules) {}
+
+    /// Blame a file at the head of a local branch: for every line, the commit that last changed it.
+    /// Follows renames. Returns empty if the branch or file does not exist; {@link BlameData#binary()} is true for binary files.
+    /// @param maxLines lines beyond this are truncated
+    public Optional<BlameData> blame(Long repoId, String branchName, String path, int maxLines) {
+        File repoDir = new File(gitOperationService.getLocalRepositoryPath(repoId));
+        if (!repoDir.exists() || !new File(repoDir, ".git").exists()) {
+            return Optional.empty();
+        }
+        String refName = branchName.startsWith("refs/heads/") ? branchName : "refs/heads/" + branchName;
+        try (Repository repository = openRepository(repoDir);
+             Git git = new Git(repository)) {
+            ObjectId head = resolveBranchToCommit(repository, refName);
+            if (head == null) {
+                return Optional.empty();
+            }
+            // Detect missing / binary files up front (BlameCommand returns null for missing paths)
+            try (RevWalk walk = new RevWalk(repository);
+                 ObjectReader reader = repository.newObjectReader();
+                 TreeWalk tw = TreeWalk.forPath(reader, path, walk.parseCommit(head).getTree())) {
+                if (tw == null || tw.getFileMode(0) == FileMode.GITLINK || tw.getFileMode(0) == FileMode.TREE) {
+                    return Optional.empty();
+                }
+                byte[] bytes = reader.open(tw.getObjectId(0)).getBytes();
+                if (RawText.isBinary(bytes)) {
+                    return Optional.of(new BlameData(head.getName(), true, false, Collections.emptyList()));
+                }
+            }
+            BlameResult result = git.blame()
+                    .setStartCommit(head)
+                    .setFilePath(path)
+                    .setFollowFileRenames(true)
+                    .setTextComparator(RawTextComparator.DEFAULT)
+                    .call();
+            if (result == null) {
+                return Optional.empty();
+            }
+            RawText text = result.getResultContents();
+            int total = text.size();
+            int count = Math.min(total, maxLines);
+            List<BlameLine> lines = new ArrayList<>(count);
+            for (int i = 0; i < count; i++) {
+                RevCommit c = result.getSourceCommit(i);
+                lines.add(new BlameLine(
+                        text.getString(i),
+                        c != null ? c.getName() : null,
+                        c != null ? getAuthorName(c) : null,
+                        c != null ? toCommitTimeMs(c) : 0L));
+            }
+            return Optional.of(new BlameData(head.getName(), false, total > count, lines));
+        } catch (IOException | GitAPIException e) {
+            log.warn("Blame failed: repoId={}, branch={}, path={}, error={}", repoId, branchName, path, e.getMessage());
+            return Optional.empty();
+        }
+    }
+
+    /// One blamed line: its text and the commit that last changed it (commitSha null if unknown)
+    public record BlameLine(String content, String commitSha, String authorName, long commitTime) {}
+
+    /// Blame of a whole file at a branch head
+    public record BlameData(String headSha, boolean binary, boolean truncated, List<BlameLine> lines) {}
+
+    /// Whether the local clone is shallow (missing history)
+    public boolean isShallow(Long repoId) {
+        return gitOperationService.isShallow(repoId);
+    }
+
     /// Ref namespace used by the Entire CLI "refs" checkpoint backend (default since CLI 0.13):
     /// one commit per checkpoint at refs/entire/checkpoints/<shard>/<checkpointId>, files at the tree root.
     public static final String CHECKPOINT_REFS_PREFIX = "refs/entire/checkpoints/";
@@ -282,6 +392,10 @@ public class CheckpointGitReader {
                     int deletions = 0;
                     DiffAlgorithm diffAlg = DiffAlgorithm.getAlgorithm(DiffAlgorithm.SupportedAlgorithm.HISTOGRAM);
                     for (DiffEntry entry : entries) {
+                        // Submodule pointer changes reference commits of another repository, not blobs
+                        if (entry.getOldMode() == FileMode.GITLINK || entry.getNewMode() == FileMode.GITLINK) {
+                            continue;
+                        }
                         ObjectId oldId = (entry.getChangeType() == DiffEntry.ChangeType.ADD)
                                 ? ObjectId.zeroId()
                                 : repository.resolve(entry.getOldId().name());

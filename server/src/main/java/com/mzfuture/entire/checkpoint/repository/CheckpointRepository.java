@@ -6,6 +6,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.querydsl.QuerydslPredicateExecutor;
 import org.springframework.data.repository.query.Param;
 
+import java.util.List;
 import java.util.Optional;
 
 public interface CheckpointRepository extends JpaRepository<Checkpoint, Long>, QuerydslPredicateExecutor<Checkpoint> {
@@ -36,4 +37,7 @@ public interface CheckpointRepository extends JpaRepository<Checkpoint, Long>, Q
     /// Sum token usage in time range (null treated as 0, by commitTime)
     @Query("SELECT COALESCE(SUM(c.tokenUsage), 0) FROM Checkpoint c WHERE c.commitTime >= :start AND c.commitTime <= :end")
     Long sumTokenUsageByCommitTimeBetween(@Param("start") Long start, @Param("end") Long end);
+
+    /// Checkpoints of a repo linked to any of the given commit SHAs
+    List<Checkpoint> findByRepoIdAndCommitShaIn(Long repoId, java.util.Collection<String> commitShas);
 }

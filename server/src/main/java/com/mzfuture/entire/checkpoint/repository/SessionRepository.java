@@ -13,4 +13,9 @@ public interface SessionRepository extends JpaRepository<Session, Long> {
 
     /// Find by checkpoint and session index (for upsert)
     Optional<Session> findByCheckpointIdAndSessionIndex(Long checkpointId, Integer sessionIndex);
+
+    /// All sessions of all checkpoints of a repository
+    @org.springframework.data.jpa.repository.Query(
+            "SELECT s FROM Session s WHERE s.checkpointId IN (SELECT c.id FROM Checkpoint c WHERE c.repoId = :repoId)")
+    List<Session> findAllByRepoId(@org.springframework.data.repository.query.Param("repoId") Long repoId);
 }

@@ -15,7 +15,7 @@ public interface GitOperationService {
     /// @return Local repository path
     String cloneRepository(Long repoId, String authUrl, String branch);
 
-    /// Clone repository (depth can be specified, depth<=0 means use global default depth)
+    /// Clone repository (depth can be specified, depth<0 means use global default depth, 0 means full history)
     ///
     /// @param repoId Repository ID
     /// @param authUrl URL with authentication
@@ -55,6 +55,12 @@ public interface GitOperationService {
     /// @param repoId Repository ID
     /// @return Whether successfully deleted
     boolean deleteRepository(Long repoId);
+
+    /// Whether the local clone is shallow (has a .git/shallow file)
+    ///
+    /// @param repoId Repository ID
+    /// @return true if the local repository exists and is shallow
+    boolean isShallow(Long repoId);
 
     /// Get all branch names from remote repository
     ///

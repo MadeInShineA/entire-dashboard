@@ -230,6 +230,13 @@ public class GitSyncServiceImpl implements GitSyncService {
         result.setSyncTime(System.currentTimeMillis());
 
         boolean exists = gitOperationService.isRepositoryExists(repoId);
+        int depth = cloneDepth < 0 ? gitProperties.getCloneDepth() : cloneDepth;
+        if (exists && depth == 0 && gitOperationService.isShallow(repoId)) {
+            // Full history is required (commit walk, per-line blame) but an older clone is shallow: re-clone
+            log.info("checkpoint sync: local clone is shallow but full history is required, re-cloning: repoId={}", repoId);
+            gitOperationService.deleteRepository(repoId);
+            exists = false;
+        }
         try {
             if (exists) {
                 gitOperationService.fetchBranches(repoId, authUrl, remoteBranches);
@@ -238,7 +245,6 @@ public class GitSyncServiceImpl implements GitSyncService {
                 log.info("checkpoint all branches fetch completed: repoId={}, branches={}", repoId, remoteBranches.size());
             } else {
                 String cloneBranch = remoteBranches.contains(metadataBranch) ? metadataBranch : remoteBranches.get(0);
-                int depth = cloneDepth < 0 ? gitProperties.getCloneDepth() : cloneDepth;
                 executeWithRetry(() -> {
                     gitOperationService.cloneRepository(repoId, authUrl, cloneBranch, depth);
                     return null;

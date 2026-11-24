@@ -1,0 +1,51 @@
+{
+  "cli_version": "0.13.2",
+  "checkpoint_id": "367a604231f7",
+  "strategy": "manual-commit",
+  "branch": "main",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "server/src/main/java/com/mzfuture/entire/checkpoint/transcript/format/CodexFormat.java",
+    "server/src/test/java/com/mzfuture/entire/checkpoint/transcript/TranscriptNormalizerTest.java",
+    "web/app/features/checkpoint/components/SessionFileDiffView.vue",
+    "web/app/features/checkpoint/utils/tool-edits.ts"
+  ],
+  "sessions": [
+    {
+      "metadata": "/36/7a604231f7/0/metadata.json",
+      "transcript": "/36/7a604231f7/0/full.jsonl",
+      "compact_transcript": "/36/7a604231f7/0/transcript.jsonl",
+      "content_hash": "/36/7a604231f7/0/content_hash.txt",
+      "prompt": "/36/7a604231f7/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 92,
+    "cache_creation_tokens": 137688,
+    "cache_read_tokens": 4730602,
+    "output_tokens": 42433,
+    "api_call_count": 43,
+    "subagent_tokens": {
+      "input_tokens": 18,
+      "cache_creation_tokens": 180259,
+      "cache_read_tokens": 672522,
+      "output_tokens": 20834,
+      "api_call_count": 8
+    },
+    "subagent_tokens_complete": true
+  },
+  "redaction": {
+    "replacements": 74,
+    "layers": {
+      "betterleaks": 14,
+      "connection_string": 0,
+      "credential_key": 0,
+      "credential_value": 4,
+      "credentialed_uri": 0,
+      "entropy": 60,
+      "key_context": 0,
+      "provider_token": 0,
+      "shell_stdin": 0
+    }
+  }
+}

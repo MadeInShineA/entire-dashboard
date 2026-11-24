@@ -25,6 +25,8 @@ const EDIT_TOOLS = new Set(['Edit', 'str_replace', 'search_replace', 'replace'])
 const MULTI_EDIT_TOOLS = new Set(['MultiEdit'])
 const WRITE_TOOLS = new Set(['Write', 'Create', 'create_file'])
 const NOTEBOOK_TOOLS = new Set(['NotebookEdit'])
+/** Codex: the backend splits each patch into one `{path, operation, patch}` call per file */
+const PATCH_TOOLS = new Set(['apply_patch'])
 
 /** Above this many old×new lines, skip the LCS and show all removed then all added */
 const LCS_LIMIT = 250_000
@@ -78,6 +80,26 @@ export function diffLines(before: string, after: string): DiffLine[] {
   return out
 }
 
+/** One file's section of a Codex patch: `@@` starts a new hunk, lines are prefixed ' ', '-' or '+' */
+function patchBlocks(patch: string): DiffLine[][] {
+  const blocks: DiffLine[][] = []
+  let cur: DiffLine[] = []
+  for (const line of splitLines(patch)) {
+    if (line.startsWith('@@')) {
+      if (cur.length) blocks.push(cur)
+      cur = []
+    } else if (line.startsWith('+')) {
+      cur.push({ kind: 'add', text: line.slice(1) })
+    } else if (line.startsWith('-')) {
+      cur.push({ kind: 'del', text: line.slice(1) })
+    } else if (!line.startsWith('***')) {
+      cur.push({ kind: 'ctx', text: line.startsWith(' ') ? line.slice(1) : line })
+    }
+  }
+  if (cur.length) blocks.push(cur)
+  return blocks
+}
+
 export function toolFilePath(t: ToolUse): string | null {
   const input = t.input
   if (!input || typeof input !== 'object' || Array.isArray(input)) return null
@@ -108,6 +130,9 @@ export function toolEdit(t: ToolUse): ToolEdit | null {
     blocks = [splitLines(str(input, 'content')).map((text) => ({ kind: 'add' as const, text }))]
   } else if (NOTEBOOK_TOOLS.has(t.tool)) {
     blocks = [splitLines(str(input, 'new_source')).map((text) => ({ kind: 'add' as const, text }))]
+  } else if (PATCH_TOOLS.has(t.tool) && typeof input.patch === 'string') {
+    isWrite = input.operation === 'add'
+    blocks = patchBlocks(input.patch)
   } else {
     return null
   }

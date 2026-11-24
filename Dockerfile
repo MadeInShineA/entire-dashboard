@@ -3,7 +3,9 @@
 # =========================================================
 # Stage 1 — Frontend build (Nuxt static)
 # =========================================================
-FROM node:24-alpine AS frontend-builder
+# Builder stages output platform-independent artifacts (static files, jar), so they run on
+# the native build platform; only the runtime stage is built per target arch (no QEMU).
+FROM --platform=$BUILDPLATFORM docker.io/library/node:24-alpine AS frontend-builder
 
 WORKDIR /frontend
 
@@ -29,7 +31,7 @@ RUN --mount=type=cache,target=/root/.pnpm-store \
 # =========================================================
 # Stage 2 — Backend build (Spring Boot)
 # =========================================================
-FROM gradle:jdk25-alpine AS backend-builder
+FROM --platform=$BUILDPLATFORM docker.io/library/gradle:jdk25-alpine AS backend-builder
 
 WORKDIR /backend
 
@@ -54,7 +56,7 @@ RUN --mount=type=cache,target=/home/gradle/.gradle \
 # =========================================================
 # Stage 3 — Runtime image
 # =========================================================
-FROM eclipse-temurin:25-jdk-noble AS runtime
+FROM docker.io/library/eclipse-temurin:25-jdk-noble AS runtime
 
 ENV TZ=Asia/Shanghai
 

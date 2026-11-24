@@ -2,6 +2,7 @@
 import { createUnifiedDiff } from '../utils/format-diff'
 import { stripProjectRoot } from '../utils/transcript-parser'
 import type { FileDiff, ParsedTranscript, ToolUse } from '../utils/transcript-parser'
+import { toolEdit } from '../utils/tool-edits'
 
 const props = defineProps<{
   parsed: ParsedTranscript
@@ -26,9 +27,9 @@ const EDIT_TOOLS = new Set([
   'search_replace',
   'replace',
 ])
-const WRITE_TOOLS = new Set(['Write', 'Create', 'create_file', 'apply_patch'])
+const WRITE_TOOLS = new Set(['Write', 'Create', 'create_file'])
 
-type BlockKind = 'del' | 'add' | 'json'
+type BlockKind = 'del' | 'add' | 'ctx' | 'json'
 interface Block {
   kind: BlockKind
   text: string
@@ -36,6 +37,7 @@ interface Block {
 const BLOCK_CLASS: Record<BlockKind, string> = {
   del: 'bg-red-500/10 text-red-600 dark:text-red-400',
   add: 'bg-green-500/10 text-green-600 dark:text-green-400',
+  ctx: 'text-gray-500',
   json: 'text-gray-500',
 }
 
@@ -72,6 +74,23 @@ function matchesTreePath(rawPath: string, treePath: string, projectRoot?: string
 }
 
 function blocksFor(t: ToolUse): Block[] {
+  // Codex apply_patch: hunks of context / removed / added lines, grouped into runs
+  if (t.tool === 'apply_patch') {
+    const edit = toolEdit(t)
+    if (edit) {
+      const out: Block[] = []
+      edit.blocks.forEach((hunk, hi) => {
+        if (hi > 0) out.push({ kind: 'ctx', text: '⋯' })
+        for (const l of hunk) {
+          const text = (l.kind === 'add' ? '+ ' : l.kind === 'del' ? '- ' : '  ') + l.text
+          const last = out[out.length - 1]
+          if (last && last.kind === l.kind && last.text !== '⋯') last.text += '\n' + text
+          else out.push({ kind: l.kind, text })
+        }
+      })
+      if (out.length) return out
+    }
+  }
   if (t.tool && EDIT_TOOLS.has(t.tool)) {
     const out: Block[] = []
     const oldText = prefixLines(getInputString(t.input, 'old_string'), '- ')

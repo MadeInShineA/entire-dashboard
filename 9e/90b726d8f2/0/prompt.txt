@@ -1,0 +1,13 @@
+I try to sync my repo, it says sync worked but I still see never synced and no checkpoints what's up
+
+---
+
+But when I validate the token inside the ui it says its valid
+
+---
+
+Please make thos changes, also fix that it's actually sayingsuccess even if it doesn't actually success
+
+---
+
+Please make the commits and push! Also make a commit for the docker compose change

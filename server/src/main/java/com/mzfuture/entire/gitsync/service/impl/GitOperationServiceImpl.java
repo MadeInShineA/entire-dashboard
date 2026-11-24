@@ -5,13 +5,16 @@ import com.mzfuture.entire.config.GitProperties;
 import com.mzfuture.entire.gitsync.dto.response.GitStatusDTO;
 import com.mzfuture.entire.gitsync.dto.response.PullResult;
 import com.mzfuture.entire.gitsync.service.GitOperationService;
+import com.mzfuture.entire.common.exception.AppException;
 import com.mzfuture.entire.common.exception.Errors;
+import com.mzfuture.entire.common.util.SecretMasker;
 import lombok.extern.slf4j.Slf4j;
 import org.eclipse.jgit.api.CloneCommand;
 import org.eclipse.jgit.api.FetchCommand;
 import org.eclipse.jgit.api.Git;
 import org.eclipse.jgit.api.PullCommand;
 import org.eclipse.jgit.api.errors.GitAPIException;
+import org.eclipse.jgit.api.errors.TransportException;
 import org.eclipse.jgit.lib.Ref;
 import org.eclipse.jgit.lib.Repository;
 import org.eclipse.jgit.revwalk.RevCommit;
@@ -90,8 +93,7 @@ public class GitOperationServiceImpl implements GitOperationService {
             return localPath;
 
         } catch (GitAPIException e) {
-            log.error("Failed to clone repository: repoId={}, error={}", repoId, e.getMessage(), e);
-            throw Errors.INTERNAL_ERROR.toException("Failed to clone repository: " + e.getMessage());
+            throw gitFailure("Failed to clone repository", "repoId=" + repoId, e);
         } finally {
             lock.unlock();
         }
@@ -147,8 +149,7 @@ public class GitOperationServiceImpl implements GitOperationService {
             }
 
         } catch (IOException | GitAPIException e) {
-            log.error("Failed to pull repository: repoId={}, error={}", repoId, e.getMessage(), e);
-            throw Errors.INTERNAL_ERROR.toException("Failed to pull repository: " + e.getMessage());
+            throw gitFailure("Failed to pull repository", "repoId=" + repoId, e);
         } finally {
             lock.unlock();
         }
@@ -267,8 +268,7 @@ public class GitOperationServiceImpl implements GitOperationService {
                 log.info("Fetch branches completed: repoId={}, branches={}", repoId, branchNames.size());
             }
         } catch (IOException | GitAPIException e) {
-            log.error("Failed to fetch branches: repoId={}, error={}", repoId, e.getMessage(), e);
-            throw Errors.INTERNAL_ERROR.toException("Failed to fetch branches: " + e.getMessage());
+            throw gitFailure("Failed to fetch branches", "repoId=" + repoId, e);
         } finally {
             lock.unlock();
         }
@@ -302,8 +302,7 @@ public class GitOperationServiceImpl implements GitOperationService {
                 log.info("Fetch refspecs completed: repoId={}, refSpecs={}", repoId, refSpecs);
             }
         } catch (IOException | GitAPIException e) {
-            log.error("Failed to fetch refspecs: repoId={}, error={}", repoId, e.getMessage(), e);
-            throw Errors.INTERNAL_ERROR.toException("Failed to fetch refs: " + e.getMessage());
+            throw gitFailure("Failed to fetch refs", "repoId=" + repoId, e);
         } finally {
             lock.unlock();
         }
@@ -327,8 +326,7 @@ public class GitOperationServiceImpl implements GitOperationService {
                     .sorted()
                     .collect(Collectors.toList());
         } catch (GitAPIException e) {
-            log.error("Failed to list remote refs: prefix={}, error={}", prefix, e.getMessage(), e);
-            throw Errors.INTERNAL_ERROR.toException("Failed to list remote refs: " + e.getMessage());
+            throw gitFailure("Failed to list remote refs", "prefix=" + prefix, e);
         }
     }
 
@@ -349,9 +347,33 @@ public class GitOperationServiceImpl implements GitOperationService {
                     .sorted()
                     .collect(Collectors.toList());
         } catch (GitAPIException e) {
-            log.error("Failed to get remote branch list: error={}", e.getMessage(), e);
-            throw Errors.INTERNAL_ERROR.toException("Failed to get remote branch list: " + e.getMessage());
+            throw gitFailure("Failed to get remote branch list", null, e);
         }
+    }
+
+    /// Log a git failure and convert it to an AppException that is safe to show to the user.
+    ///
+    /// JGit copies the auth URL (token included) into its messages, all along the cause chain, so the message
+    /// is masked and the raw exception is never logged or attached as a cause.
+    private AppException gitFailure(String action, String context, Exception e) {
+        String detail = SecretMasker.mask(e.getMessage());
+        log.error("{}{}: error={}", action, context != null ? " (" + context + ")" : "", detail);
+        boolean remote = e instanceof TransportException;
+        String message = action + ": " + detail + (remote ? accessHint(detail) : "");
+        return (remote ? Errors.GIT_REMOTE_ERROR : Errors.INTERNAL_ERROR).toException("{}", message);
+    }
+
+    /// Explain the usual cause of a rejected git request: a token that is valid but cannot read the repository
+    private static String accessHint(String detail) {
+        String lower = detail == null ? "" : detail.toLowerCase();
+        boolean denied = lower.contains("not permitted") || lower.contains("not authorized")
+                || lower.contains("authentication is required") || lower.contains("auth fail")
+                || lower.contains("repository not found") || lower.contains("403") || lower.contains("401");
+        return denied
+                ? ". The access token was rejected or cannot read this repository: check that it has access to it"
+                  + " with read permission on its contents (GitHub fine-grained token: add the repository under"
+                  + " Repository access and set Contents to Read-only)."
+                : "";
     }
 
     /// Get repository operation lock
@@ -377,7 +399,7 @@ public class GitOperationServiceImpl implements GitOperationService {
                 }
             }
         } catch (java.net.MalformedURLException e) {
-            log.warn("Failed to parse URL: {}", authUrl);
+            log.warn("Failed to parse URL: {}", SecretMasker.mask(authUrl));
         }
         return null;
     }

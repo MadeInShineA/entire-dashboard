@@ -14,6 +14,9 @@ import com.mzfuture.entire.checkpoint.repository.CheckpointRepository;
 import com.mzfuture.entire.checkpoint.repository.CheckpointSyncStateRepository;
 import com.mzfuture.entire.checkpoint.repository.SessionRepository;
 import com.mzfuture.entire.checkpoint.service.CheckpointSyncService;
+import com.mzfuture.entire.common.exception.AppException;
+import com.mzfuture.entire.common.exception.Errors;
+import com.mzfuture.entire.common.util.SecretMasker;
 import com.mzfuture.entire.gitrepo.entity.Repo;
 import com.mzfuture.entire.gitrepo.repository.RepoRepository;
 import com.mzfuture.entire.gitsync.dto.response.GitBranchesDTO;
@@ -71,11 +74,10 @@ public class CheckpointSyncServiceImpl implements CheckpointSyncService {
     @Override
     @Transactional
     public void syncRepo(Long repoId, boolean fullScan) {
-        Repo repo = repoRepository.findById(repoId).orElse(null);
-        if (repo == null) {
-            log.warn("Checkpoint sync: repo not found, repoId={}", repoId);
-            return;
-        }
+        // Every failure below throws instead of returning: a silent return looks like success to the caller
+        // (the UI said "synced successfully" while nothing was written and lastSuccessfulSyncAt stayed null).
+        Repo repo = repoRepository.findById(repoId)
+                .orElseThrow(() -> Errors.NOT_FOUND.toException("Repository does not exist: {}", repoId));
         // Entire CLI stores checkpoints either on a legacy metadata branch (entire/checkpoints/v1)
         // or, since CLI 0.13 by default, as one ref per checkpoint under refs/entire/checkpoints/.
         // Support both; a repo may even have both if it switched backends.
@@ -86,13 +88,16 @@ public class CheckpointSyncServiceImpl implements CheckpointSyncService {
             hasMetadataBranch = remoteHasBranch(repoId, metadataBranch);
             hasCheckpointRefs = !gitSyncService.listRemoteRefs(repoId, CheckpointGitReader.CHECKPOINT_REFS_PREFIX).isEmpty();
         } catch (Exception e) {
-            log.warn("Checkpoint sync: list remote refs failed for repoId={}, error={}", repoId, e.getMessage());
-            return;
+            log.warn("Checkpoint sync: list remote refs failed for repoId={}, error={}", repoId, SecretMasker.mask(e.getMessage()));
+            throw failure("Could not read the remote repository", e);
         }
         if (!hasMetadataBranch && !hasCheckpointRefs) {
             log.info("Checkpoint sync: repo {} has neither metadata branch {} nor {} refs, skip",
                     repoId, metadataBranch, CheckpointGitReader.CHECKPOINT_REFS_PREFIX);
-            return;
+            throw Errors.NO_CHECKPOINTS.toException(
+                    "No Entire checkpoints on the remote: neither the {} branch nor any {}* refs exist."
+                            + " Make sure Entire is enabled in this repository and its checkpoints have been pushed.",
+                    metadataBranch, CheckpointGitReader.CHECKPOINT_REFS_PREFIX);
         }
 
         // A shallow clone is replaced by a full one during git sync; walk everything again in that case
@@ -102,8 +107,8 @@ public class CheckpointSyncServiceImpl implements CheckpointSyncService {
         try {
             gitSyncService.syncRepositoryAllBranchesForCheckpoint(repoId, metadataBranch, syncProperties.getCloneDepth());
         } catch (Exception e) {
-            log.error("Checkpoint sync: Git sync failed, repoId={}, error={}", repoId, e.getMessage(), e);
-            return;
+            log.error("Checkpoint sync: Git sync failed, repoId={}, error={}", repoId, SecretMasker.mask(e.getMessage()));
+            throw failure("Git sync failed", e);
         }
 
         // Fetch checkpoint metadata to latest before walking content branches
@@ -112,8 +117,8 @@ public class CheckpointSyncServiceImpl implements CheckpointSyncService {
             try {
                 gitSyncService.fetchMetadataBranch(repoId, metadataBranch);
             } catch (Exception e) {
-                log.error("Checkpoint sync: fetch metadata branch failed, repoId={}, branch={}, error={}", repoId, metadataBranch, e.getMessage(), e);
-                return;
+                log.error("Checkpoint sync: fetch metadata branch failed, repoId={}, branch={}, error={}", repoId, metadataBranch, SecretMasker.mask(e.getMessage()));
+                throw failure("Fetching the " + metadataBranch + " branch failed", e);
             }
             metadataRevision = gitReader.resolveBranchCommitSha(repoId, metadataBranch).orElse(null);
             if (metadataRevision == null) {
@@ -124,22 +129,23 @@ public class CheckpointSyncServiceImpl implements CheckpointSyncService {
             try {
                 gitSyncService.fetchRefsByPrefix(repoId, CheckpointGitReader.CHECKPOINT_REFS_PREFIX);
             } catch (Exception e) {
-                log.error("Checkpoint sync: fetch checkpoint refs failed, repoId={}, error={}", repoId, e.getMessage(), e);
-                return;
+                log.error("Checkpoint sync: fetch checkpoint refs failed, repoId={}, error={}", repoId, SecretMasker.mask(e.getMessage()));
+                throw failure("Fetching checkpoint refs failed", e);
             }
         }
         Map<String, String> checkpointRefs = gitReader.listCheckpointRefs(repoId);
         if (metadataRevision == null && checkpointRefs.isEmpty()) {
             log.warn("Checkpoint sync: no checkpoint metadata available locally, repoId={}", repoId);
-            return;
+            throw Errors.INTERNAL_ERROR.toException(
+                    "Checkpoint data was found on the remote but could not be read after fetching");
         }
 
         List<String> contentBranches = gitReader.listLocalBranchNames(repoId).stream()
                 .filter(b -> !metadataBranch.equals(b))
                 .toList();
         if (contentBranches.isEmpty()) {
-            log.info("Checkpoint sync: repo {} has no content branches (excluding {}), skip walk", repoId, metadataBranch);
-            return;
+            // Not an error: there is simply nothing to walk; fall through so the sync is recorded as successful
+            log.info("Checkpoint sync: repo {} has no content branches (excluding {}), nothing to walk", repoId, metadataBranch);
         }
 
         // Incremental walk by branch: each branch uses its own lastProcessedCommitSha as stopAtSha
@@ -206,10 +212,22 @@ public class CheckpointSyncServiceImpl implements CheckpointSyncService {
         for (Repo repo : repos) {
             try {
                 syncRepo(repo.getId(), fullScan);
+            } catch (AppException e) {
+                // Expected failures (no checkpoints, rejected token...) already carry a clear, masked message
+                log.warn("Checkpoint sync failed for repoId={}: {}", repo.getId(), e.getMessage());
             } catch (Exception e) {
-                log.error("Checkpoint sync failed for repoId={}: {}", repo.getId(), e.getMessage(), e);
+                log.error("Checkpoint sync failed for repoId={}: {}", repo.getId(), SecretMasker.mask(e.getMessage()), e);
             }
         }
+    }
+
+    /// Wrap a sync step failure, keeping its status/code (e.g. GIT_REMOTE_ERROR) and masking any token
+    private static AppException failure(String step, Exception e) {
+        String message = step + ": " + SecretMasker.mask(e.getMessage());
+        if (e instanceof AppException app) {
+            return new AppException(app.getStatus(), app.getCode(), message);
+        }
+        return Errors.INTERNAL_ERROR.toException("{}", message);
     }
 
     private boolean remoteHasBranch(Long repoId, String branch) {

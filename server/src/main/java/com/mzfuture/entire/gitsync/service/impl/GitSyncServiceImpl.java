@@ -15,7 +15,9 @@ import com.mzfuture.entire.gitsync.enums.GitSyncStatus;
 import com.mzfuture.entire.gitsync.adapter.GitPlatformAdapter;
 import com.mzfuture.entire.gitsync.service.GitOperationService;
 import com.mzfuture.entire.gitsync.service.GitSyncService;
+import com.mzfuture.entire.common.exception.AppException;
 import com.mzfuture.entire.common.exception.Errors;
+import com.mzfuture.entire.common.util.SecretMasker;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
@@ -144,13 +146,13 @@ public class GitSyncServiceImpl implements GitSyncService {
             }
 
         } catch (Exception e) {
-            log.error("Repository sync failed: repoId={}, error={}", repoId, e.getMessage(), e);
+            log.error("Repository sync failed: repoId={}, error={}", repoId, SecretMasker.mask(e.getMessage()));
 
             result.setStatus(GitSyncStatus.FAILED.name());
-            result.setErrorMessage(e.getMessage());
+            result.setErrorMessage(SecretMasker.mask(e.getMessage()));
             result.setHasUpdate(false);
 
-            throw Errors.INTERNAL_ERROR.toException("Repository sync failed: " + e.getMessage());
+            throw rewrap("Repository sync failed", e);
         }
 
         return result;
@@ -173,12 +175,21 @@ public class GitSyncServiceImpl implements GitSyncService {
             } catch (Exception e) {
                 lastException = e;
                 attempt++;
-                log.warn("Operation failed (attempt {}): {}", attempt, e.getMessage());
+                log.warn("Operation failed (attempt {}): {}", attempt, SecretMasker.mask(e.getMessage()));
             }
         }
 
-        throw Errors.INTERNAL_ERROR.toException(
-                "Operation failed after " + maxRetries + " retries: " + lastException.getMessage());
+        throw rewrap("Operation failed after " + maxRetries + " retries", lastException);
+    }
+
+    /// Prefix an error message while keeping its HTTP status/code (e.g. GIT_REMOTE_ERROR), so callers and the
+    /// UI can still tell a rejected token from an internal bug. The message is masked in case it carries a token.
+    private static AppException rewrap(String prefix, Exception e) {
+        String message = prefix + ": " + SecretMasker.mask(e.getMessage());
+        if (e instanceof AppException app) {
+            return new AppException(app.getStatus(), app.getCode(), message);
+        }
+        return Errors.INTERNAL_ERROR.toException("{}", message);
     }
 
     @Override
@@ -256,11 +267,11 @@ public class GitSyncServiceImpl implements GitSyncService {
                         repoId, cloneBranch, remoteBranches.size());
             }
         } catch (Exception e) {
-            log.error("checkpoint all branches sync failed: repoId={}, error={}", repoId, e.getMessage(), e);
+            log.error("checkpoint all branches sync failed: repoId={}, error={}", repoId, SecretMasker.mask(e.getMessage()));
             result.setStatus(GitSyncStatus.FAILED.name());
-            result.setErrorMessage(e.getMessage());
+            result.setErrorMessage(SecretMasker.mask(e.getMessage()));
             result.setHasUpdate(false);
-            throw Errors.INTERNAL_ERROR.toException("checkpoint all branches sync failed: " + e.getMessage());
+            throw rewrap("Checkpoint sync failed", e);
         }
         return result;
     }
@@ -319,6 +330,17 @@ public class GitSyncServiceImpl implements GitSyncService {
             return TokenValidateResult.fail("Web URL cannot be empty");
         }
         boolean valid = adapter.validateToken(params.getWebUrl(), params.getAccessToken());
-        return valid ? TokenValidateResult.ok() : TokenValidateResult.fail("Token is invalid or expired");
+        if (!valid) {
+            return TokenValidateResult.fail("Token is invalid or expired");
+        }
+        // A token can authenticate (e.g. GitHub GET /user) yet have no access to this repository, which is what
+        // sync actually needs. Probe the repository over git itself, exactly like sync does.
+        try {
+            gitOperationService.listRemoteBranches(adapter.buildAuthUrl(params.getWebUrl(), params.getAccessToken()));
+        } catch (Exception e) {
+            return TokenValidateResult.fail("Token is valid but cannot read this repository. "
+                    + SecretMasker.mask(e.getMessage()));
+        }
+        return TokenValidateResult.ok();
     }
 }

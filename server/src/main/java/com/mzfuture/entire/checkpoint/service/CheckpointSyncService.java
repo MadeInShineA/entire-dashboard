@@ -4,12 +4,13 @@ package com.mzfuture.entire.checkpoint.service;
 public interface CheckpointSyncService {
 
     /// Sync one repo: clone/pull entire/checkpoints/v1, walk commits, upsert checkpoints.
-    /// Skips silently if remote has no entire/checkpoints/v1 branch.
+    /// Throws an AppException on any failure, including when the remote has no checkpoint data
+    /// (NO_CHECKPOINTS) or rejects the token (GIT_REMOTE_ERROR); returning normally means the sync succeeded.
     /// @param repoId repository id
     /// @param fullScan if true, ignore last_processed and walk all commits from HEAD to root
     void syncRepo(Long repoId, boolean fullScan);
 
-    /// Sync all repos (same as syncRepo for each; repos without branch are skipped).
+    /// Sync all repos (syncRepo for each; a failing repo is logged and the others still run).
     /// @param fullScan if true, full scan for each repo
     void syncAllRepos(boolean fullScan);
 }

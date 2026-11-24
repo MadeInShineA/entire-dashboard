@@ -1,6 +1,6 @@
 services:
   mysql:
-    image: mysql:8.0
+    image: docker.io/mysql:8.0
     container_name: entire-dashboard-mysql
     environment:
       MYSQL_ROOT_PASSWORD: root123456

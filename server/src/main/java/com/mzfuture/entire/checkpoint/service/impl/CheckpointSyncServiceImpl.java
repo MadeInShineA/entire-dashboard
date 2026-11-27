@@ -317,6 +317,10 @@ public class CheckpointSyncServiceImpl implements CheckpointSyncService {
         to.setAgent(from.getAgent());
         to.setInputTokens(from.getInputTokens());
         to.setOutputTokens(from.getOutputTokens());
+        to.setCacheCreationTokens(from.getCacheCreationTokens());
+        to.setCacheReadTokens(from.getCacheReadTokens());
+        to.setModel(from.getModel());
+        to.setTurnCount(from.getTurnCount());
         to.setApiCallCount(from.getApiCallCount());
         to.setAgentLines(from.getAgentLines());
         to.setHumanAdded(from.getHumanAdded());

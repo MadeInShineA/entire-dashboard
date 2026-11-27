@@ -32,13 +32,20 @@ public class SessionMetadataParser {
                 filesTouchedJson = objectMapper.writeValueAsString(arr);
             }
             String agent = text(root, "agent");
+            String model = text(root, "model");
+            Integer turnCount = null;
+            if (root.has("session_metrics") && root.get("session_metrics").has("turn_count")) {
+                turnCount = root.get("session_metrics").get("turn_count").asInt();
+            }
 
-            long inputTokens = 0, outputTokens = 0;
+            long inputTokens = 0, outputTokens = 0, cacheCreationTokens = 0, cacheReadTokens = 0;
             int apiCallCount = 0;
             if (root.has("token_usage") && root.get("token_usage").isObject()) {
                 JsonNode tu = root.get("token_usage");
                 inputTokens = tu.has("input_tokens") ? tu.get("input_tokens").asLong() : 0;
                 outputTokens = tu.has("output_tokens") ? tu.get("output_tokens").asLong() : 0;
+                cacheCreationTokens = tu.has("cache_creation_tokens") ? tu.get("cache_creation_tokens").asLong() : 0;
+                cacheReadTokens = tu.has("cache_read_tokens") ? tu.get("cache_read_tokens").asLong() : 0;
                 apiCallCount = tu.has("api_call_count") ? tu.get("api_call_count").asInt() : 0;
             }
 
@@ -68,6 +75,10 @@ public class SessionMetadataParser {
                     .agent(agent)
                     .inputTokens(inputTokens)
                     .outputTokens(outputTokens)
+                    .cacheCreationTokens(cacheCreationTokens)
+                    .cacheReadTokens(cacheReadTokens)
+                    .model(model)
+                    .turnCount(turnCount)
                     .apiCallCount(apiCallCount)
                     .agentLines(agentLines)
                     .humanAdded(humanAdded)

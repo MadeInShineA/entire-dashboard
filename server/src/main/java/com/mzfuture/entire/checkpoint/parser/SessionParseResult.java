@@ -29,4 +29,8 @@ public class SessionParseResult {
     private Integer totalCommitted;
     private BigDecimal agentPercentage;
     private String promptPreview;
+    private Long cacheCreationTokens;
+    private Long cacheReadTokens;
+    private String model;
+    private Integer turnCount;
 }

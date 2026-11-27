@@ -45,13 +45,16 @@ export function useCheckpointSearch() {
   const router = useRouter()
 
   const today = new Date()
-  const defaultStart = getDaysAgo(DEFAULT_DAYS)
   const defaultEnd = today
+  /** Date of the oldest checkpoint: the default start, so the page opens on the full history */
+  const firstCheckpointDate = ref<string | null>(null)
+  const fallbackStart = () => firstCheckpointDate.value ?? formatDate(getDaysAgo(DEFAULT_DAYS))
 
-  // Initialize from URL or defaults
-  const startDateStr = ref(
-    (route.query.startDateStr as string) || formatDate(defaultStart)
-  )
+  // Initialize from URL, else (until the first checkpoint date is known) the fallback
+  const startFromUrl = route.query.startDateStr as string | undefined
+  const startDateStr = ref(startFromUrl || fallbackStart())
+  /** Watchers stay idle until the initial start date is settled, to avoid a throw-away first search */
+  let ready = false
   const endDateStr = ref(
     (route.query.endDateStr as string) || formatDate(defaultEnd)
   )
@@ -83,12 +86,14 @@ export function useCheckpointSearch() {
   const loadingAuthors = ref(false)
 
   const startTime = computed(() => {
-    const d = new Date(startDateStr.value)
+    const [y, m, day] = startDateStr.value.split('-').map(Number)
+    const d = new Date(y!, (m ?? 1) - 1, day ?? 1)
     d.setHours(0, 0, 0, 0)
     return d.getTime()
   })
   const endTime = computed(() => {
-    const d = new Date(endDateStr.value)
+    const [y, m, day] = endDateStr.value.split('-').map(Number)
+    const d = new Date(y!, (m ?? 1) - 1, day ?? 1)
     d.setHours(23, 59, 59, 999)
     return d.getTime()
   })
@@ -185,15 +190,16 @@ export function useCheckpointSearch() {
   watch(
     [startDateStr, endDateStr],
     () => {
+      if (!ready) return
       refresh()
       syncToUrl()
-    },
-    { immediate: true }
+    }
   )
 
   watch(
     [repoIds, commitAuthorNames, commitMessage],
     () => {
+      if (!ready) return
       pager.page = 1
       refresh()
       syncToUrl()
@@ -204,6 +210,7 @@ export function useCheckpointSearch() {
   watch(
     () => pager.size,
     () => {
+      if (!ready) return
       pager.page = 1
       fetchList()
       syncToUrl()
@@ -213,12 +220,30 @@ export function useCheckpointSearch() {
   watch(
     () => pager.page,
     () => {
+      if (!ready) return
       syncToUrl()
     }
   )
 
+  /** Default the start date to the oldest checkpoint (unless the URL sets one), then run the first search */
+  async function init() {
+    try {
+      const bounds = await checkpointApi.getTimeBounds()
+      if (bounds?.firstCommitTime != null) firstCheckpointDate.value = formatDate(new Date(bounds.firstCommitTime))
+    } catch {
+      // Keep the fallback range
+    }
+    if (!startFromUrl) startDateStr.value = fallbackStart()
+    // Let the date watcher see (and skip) the change before enabling it
+    await nextTick()
+    ready = true
+    refresh()
+    syncToUrl()
+  }
+  if (import.meta.client) init()
+
   function resetFilters() {
-    startDateStr.value = formatDate(getDaysAgo(DEFAULT_DAYS))
+    startDateStr.value = fallbackStart()
     endDateStr.value = formatDate(new Date())
     repoIds.value = []
     commitAuthorNames.value = []

@@ -38,6 +38,14 @@ public interface CheckpointRepository extends JpaRepository<Checkpoint, Long>, Q
     @Query("SELECT COALESCE(SUM(c.tokenUsage), 0) FROM Checkpoint c WHERE c.commitTime >= :start AND c.commitTime <= :end")
     Long sumTokenUsageByCommitTimeBetween(@Param("start") Long start, @Param("end") Long end);
 
+    /// Commit time of the oldest checkpoint, null when there are none
+    @Query("SELECT MIN(c.commitTime) FROM Checkpoint c")
+    Long findMinCommitTime();
+
+    /// Commit time of the newest checkpoint, null when there are none
+    @Query("SELECT MAX(c.commitTime) FROM Checkpoint c")
+    Long findMaxCommitTime();
+
     /// Checkpoints of a repo linked to any of the given commit SHAs
     List<Checkpoint> findByRepoIdAndCommitShaIn(Long repoId, java.util.Collection<String> commitShas);
 }

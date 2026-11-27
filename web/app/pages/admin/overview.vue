@@ -1,3 +1,114 @@
+<script setup lang="ts">
+import OverviewFilterBar from '~/features/overview/components/OverviewFilterBar.vue'
+import CodeChangesChart from '~/features/overview/components/CodeChangesChart.vue'
+import TokenUsageChart from '~/features/overview/components/TokenUsageChart.vue'
+import ContributionChart from '~/features/overview/components/ContributionChart.vue'
+import BreakdownChart from '~/features/overview/components/BreakdownChart.vue'
+import ActivityHeatmap from '~/features/overview/components/ActivityHeatmap.vue'
+import CheckpointsList from '~/features/overview/components/CheckpointsList.vue'
+import CheckpointDetailSlideover from '~/features/checkpoint/components/CheckpointDetailSlideover.vue'
+import KpiCard from '~/shared/components/KpiCard.vue'
+import { useOverviewAnalytics } from '~/features/overview/composables/useOverviewAnalytics'
+import { byDay, dayTokens, relativeChange, totals } from '~/features/overview/utils/aggregate'
+import type { AnalyticsRow, FilterDim } from '~/features/overview/types/analytics.types'
+import type { CheckpointDTO } from '~/features/checkpoint/types/checkpoint.types'
+import { formatCompact, formatPercent } from '~/shared/utils/format'
+
+definePageMeta({
+  layout: 'admin',
+  middleware: 'auth',
+})
+
+const {
+  preset,
+  customFrom,
+  customTo,
+  setPreset,
+  range,
+  rangeError,
+  dates,
+  filters,
+  toggleFilter,
+  clearFilters,
+  hasFilters,
+  periodRows,
+  current,
+  previous,
+  currentExcept,
+  truncated,
+  pending,
+  loaded,
+  error,
+} = useOverviewAnalytics()
+
+const { theme } = useChartTheme()
+
+const cur = computed(() => totals(current.value))
+const prev = computed(() => totals(previous.value))
+const days = computed(() => byDay(current.value, dates.value))
+
+const kpis = computed(() => {
+  const c = cur.value
+  const p = prev.value
+  const d = days.value
+  const hasPrev = previous.value.length > 0
+  return [
+    {
+      title: 'Checkpoints',
+      icon: 'i-lucide-git-commit',
+      value: c.checkpoints.toLocaleString(),
+      delta: hasPrev ? relativeChange(c.checkpoints, p.checkpoints) : null,
+      series: d.map((x) => x.checkpoints),
+      hint: `across ${c.repos} repositor${c.repos === 1 ? 'y' : 'ies'}`,
+    },
+    {
+      title: 'Agent turns',
+      icon: 'i-lucide-messages-square',
+      value: c.turns.toLocaleString(),
+      delta: hasPrev ? relativeChange(c.turns, p.turns) : null,
+      series: d.map((x) => x.turns),
+      hint: c.checkpoints ? `${(c.turns / c.checkpoints).toFixed(1)} prompts per checkpoint` : undefined,
+    },
+    {
+      title: 'Lines changed',
+      icon: 'i-lucide-file-diff',
+      value: formatCompact(c.additions + c.deletions),
+      delta: hasPrev ? relativeChange(c.additions + c.deletions, p.additions + p.deletions) : null,
+      series: d.map((x) => x.additions + x.deletions),
+      hint: `+${c.additions.toLocaleString()} / −${c.deletions.toLocaleString()}`,
+    },
+    {
+      title: 'Tokens',
+      icon: 'i-lucide-coins',
+      value: formatCompact(c.tokens),
+      delta: hasPrev ? relativeChange(c.tokens, p.tokens) : null,
+      series: d.map(dayTokens),
+      hint: c.cacheReadShare != null ? `${formatPercent(c.cacheReadShare)} served from cache` : undefined,
+    },
+    {
+      title: 'Contributors',
+      icon: 'i-lucide-users',
+      value: c.authors.toLocaleString(),
+      delta: hasPrev ? relativeChange(c.authors, p.authors) : null,
+      series: d.map((x) => x.authors.size),
+    },
+  ]
+})
+
+function onFilter(dim: FilterDim, value: string | null) {
+  if (value == null) filters[dim] = null
+  else toggleFilter(dim, value)
+}
+
+// Checkpoint detail (from the timeline or the table)
+const detailOpen = ref(false)
+const detailCheckpoint = ref<CheckpointDTO | null>(null)
+function openCheckpoint(row: AnalyticsRow) {
+  detailCheckpoint.value = row as unknown as CheckpointDTO
+  detailOpen.value = true
+}
+</script>
+
 <template>
   <UDashboardPanel id="dashboard">
     <template #header>
@@ -8,191 +119,79 @@
       </UDashboardNavbar>
     </template>
     <template #body>
-      <div class="space-y-6 overflow-y-auto h-full p-4">
-        <!-- Date range selector -->
-        <div class="flex items-center justify-end gap-2 flex-wrap">
-          <!-- Quick options -->
-          <UButton
-            v-for="option in DATE_RANGE_OPTIONS"
-            :key="option.value"
-            :variant="dateRangeType === option.value ? 'solid' : 'outline'"
-            :color="dateRangeType === option.value ? 'primary' : 'neutral'"
-            size="sm"
-            @click="selectDateRange(option.value)"
-          >
-            {{ option.label }}
-          </UButton>
+      <div class="space-y-5">
+        <OverviewFilterBar
+          v-model:custom-from="customFrom"
+          v-model:custom-to="customTo"
+          :preset="preset"
+          :filters="filters"
+          :period-rows="periodRows"
+          :has-filters="hasFilters"
+          :range-error="rangeError"
+          :pending="pending"
+          @preset="setPreset"
+          @filter="onFilter"
+          @clear="clearFilters"
+        />
 
-          <!-- Custom date range - only shown when 'custom' is selected -->
-          <template v-if="dateRangeType === 'custom'">
-            <UInput
-              v-model="customStartDate"
-              type="date"
-              size="sm"
-              :max="customEndDate || formatDate(new Date())"
-              placeholder="Start date"
-            />
-            <span class="text-gray-500">-</span>
-            <UInput
-              v-model="customEndDate"
-              type="date"
-              size="sm"
-              :min="customStartDate"
-              :max="formatDate(new Date())"
-              placeholder="End date"
-            />
-          </template>
-        </div>
+        <UAlert v-if="error" color="error" variant="soft" icon="i-lucide-alert-circle" :title="error" />
+        <UAlert
+          v-if="truncated"
+          color="warning"
+          variant="soft"
+          icon="i-lucide-triangle-alert"
+          title="Too many checkpoints: only the most recent ones are included. Pick a shorter period."
+        />
 
-        <div v-if="pending" class="flex items-center justify-center py-16">
+        <div v-if="!loaded && pending" class="flex items-center justify-center py-24">
           <UIcon name="i-lucide-loader-2" class="w-10 h-10 animate-spin text-primary" />
         </div>
 
-        <!-- Error state -->
-        <UAlert
-          v-else-if="error"
-          color="error"
-          variant="soft"
-          :title="error.message || 'Failed to load statistics'"
-          icon="i-lucide-alert-circle"
-        />
-
-        <!-- Stats cards -->
-        <div v-else-if="stats" class="space-y-6">
-          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            <StatsCard
-              title="Recently Active Repos"
-              :value="stats.activeProjectCount"
-              description="Repositories with checkpoints in the selected time range"
-              icon="i-lucide-folder-git"
-              icon-color="text-blue-600 dark:text-blue-500"
-            />
-            <StatsCard
-              title="Contributors"
-              :value="stats.submitterCount"
-              description="Unique contributors in the selected time range"
-              icon="i-lucide-users"
-              icon-color="text-green-600 dark:text-green-500"
-            />
-            <StatsCard
-              title="Checkpoints"
-              :value="stats.checkpointCount"
-              description="Total checkpoints in the selected time range"
-              icon="i-lucide-git-commit"
-              icon-color="text-amber-600 dark:text-amber-500"
-            />
-            <StatsCard
-              title="Total Token Usage"
-              :value="stats.totalTokenUsage"
-              description="Total tokens consumed in the selected time range"
-              icon="i-lucide-coins"
-              icon-color="text-purple-600 dark:text-purple-500"
-              :formatter="formatTokenCount"
-            />
-          </div>
-
-          <!-- Contribution chart -->
-          <div v-if="queryParams?.startTime && queryParams?.endTime">
-            <div v-if="checkpointsPending" class="flex justify-center py-8">
-              <UIcon name="i-lucide-loader-2" class="w-8 h-8 animate-spin text-primary" />
-            </div>
-            <template v-else>
-              <ContributionChart
-                :chart-data="chartData"
-                :start-time="queryParams?.startTime"
-                :end-time="queryParams?.endTime"
-                :agent-stats="agentStats"
-                :chart-data-truncated="chartDataTruncated"
-                :checkpoint-count="stats.checkpointCount"
-              />
-            </template>
-          </div>
-
-          <!-- Checkpoints list: full load replaces content; pagination uses overlay to preserve scroll -->
-          <div
-            v-if="queryParams?.startTime && queryParams?.endTime"
-            class="relative"
-          >
-            <div
-              v-if="checkpointsPending"
-              class="flex justify-center py-8"
-            >
-              <UIcon name="i-lucide-loader-2" class="w-8 h-8 animate-spin text-primary" />
-            </div>
-            <template v-else>
-              <div
-                v-if="checkpointsListPending"
-                class="absolute inset-0 flex justify-center items-center bg-white/80 dark:bg-gray-900/80 z-10 rounded-lg"
-              >
-                <UIcon name="i-lucide-loader-2" class="w-8 h-8 animate-spin text-primary" />
-              </div>
-              <CheckpointsList
-                :list-data="listData"
-                :pager="listPager"
-                :page-size-options="pageSizeOptions"
-                @page-change="goToPage"
-                @update-size="goToSize"
-              />
-            </template>
-          </div>
-        </div>
-
-        <!-- Empty state: custom range without dates -->
+        <!-- On refetch, keep the previous render (dimmed) instead of flashing a spinner -->
         <div
-          v-else-if="dateRangeType === 'custom' && (!customStartDate || !customEndDate)"
-          class="text-center py-16 text-gray-500 dark:text-gray-400"
+          v-else-if="loaded && range"
+          class="space-y-5 transition-opacity"
+          :class="pending ? 'opacity-60' : ''"
         >
-          <UIcon name="i-lucide-calendar" class="w-12 h-12 mx-auto mb-4 opacity-50" />
-          <p>Please select start and end dates</p>
-        </div>
+          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
+            <KpiCard
+              v-for="k in kpis"
+              :key="k.title"
+              :title="k.title"
+              :icon="k.icon"
+              :value="k.value"
+              :delta="k.delta"
+              :series="k.series"
+              :hint="k.hint"
+              :color="theme.accent"
+            />
+          </div>
 
-        <!-- Empty state (no data) -->
-        <div v-else class="text-center py-16 text-gray-500 dark:text-gray-400">
-          <UIcon name="i-lucide-bar-chart-3" class="w-12 h-12 mx-auto mb-4 opacity-50" />
-          <p>No data available</p>
+          <div class="grid grid-cols-1 xl:grid-cols-2 gap-5">
+            <CodeChangesChart :days="days" :totals="cur" />
+            <TokenUsageChart :days="days" :totals="cur" />
+          </div>
+
+          <ContributionChart
+            :rows="current"
+            :legend-rows="currentExcept('agent')"
+            :selected-agent="filters.agent"
+            :start="range.start"
+            :end="range.end"
+            @open="openCheckpoint"
+            @toggle-agent="(a) => toggleFilter('agent', a)"
+          />
+
+          <div class="grid grid-cols-1 xl:grid-cols-2 gap-5">
+            <BreakdownChart :rows-for="currentExcept" :filters="filters" @select="toggleFilter" />
+            <ActivityHeatmap :rows="current" />
+          </div>
+
+          <CheckpointsList :rows="current" @open="openCheckpoint" />
         </div>
       </div>
+
+      <CheckpointDetailSlideover v-model:open="detailOpen" :checkpoint="detailCheckpoint" />
     </template>
   </UDashboardPanel>
 </template>
-
-<script setup lang="ts">
-import { useOverviewStats } from '~/features/overview/composables/useOverviewStats'
-import { useOverviewCheckpoints } from '~/features/overview/composables/useOverviewCheckpoints'
-import { DATE_RANGE_OPTIONS } from '~/features/overview/constants/overview.constants'
-import ContributionChart from '~/features/overview/components/ContributionChart.vue'
-import CheckpointsList from '~/features/overview/components/CheckpointsList.vue'
-import StatsCard from '~/shared/components/StatsCard.vue'
-import { formatDate } from '~/shared/utils/date'
-import { formatTokenCount } from '~/shared/utils/format'
-
-definePageMeta({
-  layout: 'admin',
-  middleware: 'auth',
-})
-
-const {
-  stats,
-  pending,
-  error,
-  refresh,
-  dateRangeType,
-  customStartDate,
-  customEndDate,
-  selectDateRange,
-  queryParams,
-} = useOverviewStats()
-
-const {
-  chartData,
-  chartDataTruncated,
-  listData,
-  listPager,
-  agentStats,
-  pending: checkpointsPending,
-  listPending: checkpointsListPending,
-  goToPage,
-  goToSize,
-  pageSizeOptions,
-} = useOverviewCheckpoints(queryParams)
-</script>

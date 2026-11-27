@@ -10,6 +10,7 @@ import type { FileHistory, FileLine, FileList, FileSession } from '~/features/fi
 
 definePageMeta({
   layout: 'admin',
+  middleware: 'auth',
 })
 
 const route = useRoute()
@@ -30,6 +31,7 @@ const selectedKey = ref<number | null>(null)
 const detailOpen = ref(false)
 const detailCheckpoint = ref<CheckpointDTO | null>(null)
 const detailSessionId = ref<number | null>(null)
+const detailFocusFile = ref<string | null>(null)
 
 const repoItems = computed(() => repos.value.map((r) => ({ label: r.name, value: r.id })))
 const branchItems = computed(() => (fileList.value?.branches ?? []).map((b) => ({ label: b, value: b })))
@@ -144,9 +146,11 @@ function onSelectFile(p: string) {
   loadHistory()
 }
 
-function openDetail(row: FileSession) {
+/** Open a session in the checkpoint panel: on this file's diff, or on the conversation */
+function openDetail(row: FileSession, view: 'diff' | 'conversation' = 'diff') {
   detailCheckpoint.value = row.checkpoint
   detailSessionId.value = row.session?.id ?? null
+  detailFocusFile.value = view === 'diff' ? path.value : null
   detailOpen.value = true
 }
 
@@ -252,7 +256,7 @@ onMounted(async () => {
                   @open="openDetail"
                 />
                 <p class="text-xs text-muted">
-                  Click a session to highlight its lines; the panel button opens its transcript and diff for this file.
+                  Click a session, or any line it wrote below, to highlight its lines; the panel button opens its transcript and diff for this file.
                   Attribution is per commit: a line belongs to a session when the commit that last changed it carries
                   that session's checkpoint, even if it was edited by hand before committing.
                 </p>
@@ -273,6 +277,7 @@ onMounted(async () => {
                     :row-by-key="rowByKey"
                     :selected-key="selectedKey"
                     @select="selectedKey = $event"
+                    @open="openDetail($event, 'conversation')"
                   />
                   <p v-if="history.truncated" class="text-xs text-muted">
                     Showing the first {{ history.lines.length }} lines of a longer file.
@@ -288,7 +293,7 @@ onMounted(async () => {
         v-model:open="detailOpen"
         :checkpoint="detailCheckpoint"
         :focus-session-id="detailSessionId"
-        :focus-file="path"
+        :focus-file="detailFocusFile"
       />
     </template>
   </UDashboardPanel>

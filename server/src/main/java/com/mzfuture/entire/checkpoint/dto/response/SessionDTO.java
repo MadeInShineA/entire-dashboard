@@ -72,6 +72,18 @@ public class SessionDTO {
     @Schema(description = "Prompt preview for list (first line of prompt.txt)", example = "Provide both Chinese and English versions of README")
     private String promptPreview;
 
+    /// Token usage: prompt-cache writes
+    private Long cacheCreationTokens;
+
+    /// Token usage: prompt-cache reads
+    private Long cacheReadTokens;
+
+    /// Model used by the agent (Entire CLI 0.13.2+)
+    private String model;
+
+    /// Prompts (turns) in the session, from session_metrics.turn_count
+    private Integer turnCount;
+
     @Schema(description = "Creation timestamp (Unix epoch ms)", example = "1704067200000")
     private Long createdAt;
 

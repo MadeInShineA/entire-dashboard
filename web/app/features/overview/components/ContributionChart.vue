@@ -1,174 +1,185 @@
-<template>
-  <UCard>
-    <template #header>
-      <div class="flex items-center justify-between">
-        <h3 class="text-lg font-semibold">CONTRIBUTIONS</h3>
-        <span v-if="checkpointCount !== null" class="text-sm text-gray-500 dark:text-gray-400">
-          {{ checkpointCount }} checkpoints
-        </span>
-      </div>
-    </template>
-
-    <p v-if="chartDataTruncated" class="text-sm text-amber-600 dark:text-amber-500 mb-2">
-      Showing last 500 records only
-    </p>
-
-    <!-- Empty state: no date range and no data -->
-    <div v-if="isEmpty" class="text-center py-16 text-gray-500 dark:text-gray-400">
-      <UIcon name="i-lucide-git-commit" class="w-12 h-12 mx-auto mb-4 opacity-50" />
-      <p>No checkpoints in this range</p>
-    </div>
-
-    <!-- Chart: show when has date range (all dates on x-axis) or has data -->
-    <div v-else-if="showChart" class="w-full" :style="{ height: chartHeight }">
-      <VChart :option="chartOption" autoresize />
-    </div>
-
-    <!-- Legend -->
-    <div v-if="agentStats?.length" class="flex flex-wrap gap-4 mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
-      <span
-        v-for="stat in agentStats"
-        :key="stat.agent"
-        class="inline-flex items-center gap-2 text-sm"
-      >
-        <span
-          class="inline-block w-3 h-3 rounded-full"
-          :style="{ backgroundColor: getAgentColor(stat.agent) }"
-        />
-        {{ stat.agent }} {{ stat.percentage }}%
-      </span>
-    </div>
-  </UCard>
-</template>
-
 <script setup lang="ts">
-import { use } from 'echarts/core'
-import { CanvasRenderer } from 'echarts/renderers'
-import { ScatterChart } from 'echarts/charts'
-import {
-  TooltipComponent,
-  LegendComponent,
-  GridComponent,
-} from 'echarts/components'
-import VChart from 'vue-echarts'
+/**
+ * Timeline of individual checkpoints: x = commit date, y = hour of day, size = lines changed,
+ * color + shape = agent. Click a point to open the checkpoint. The agent legend doubles as
+ * the agent filter for the whole page.
+ */
 import type { EChartsOption } from 'echarts'
-import type { OverviewCheckpointChartItem, OverviewAgentStat } from '~/shared/types/stats'
-import { useAgentColors } from '../composables/useAgentColors'
-import { getDateRange } from '~/shared/utils/date'
+import ChartCard from '~/shared/components/ChartCard.vue'
+import { VChart } from '~/shared/utils/echarts'
+import { agentColor, agentSymbol, agentSymbolSvg } from '~/shared/utils/chart-palette'
+import { formatDateTime } from '~/shared/utils/date'
+import { dimValue } from '../utils/aggregate'
+import type { AnalyticsRow } from '../types/analytics.types'
 
-use([CanvasRenderer, ScatterChart, TooltipComponent, LegendComponent, GridComponent])
+const props = defineProps<{
+  rows: AnalyticsRow[]
+  /** Rows used for the legend counts: every filter except the agent one */
+  legendRows: AnalyticsRow[]
+  selectedAgent: string | null
+  start: number
+  end: number
+}>()
 
-const { getAgentColor } = useAgentColors()
+const emit = defineEmits<{
+  open: [row: AnalyticsRow]
+  toggleAgent: [agent: string]
+}>()
 
-const props = withDefaults(
-  defineProps<{
-    chartData: OverviewCheckpointChartItem[]
-    startTime?: number
-    endTime?: number
-    agentStats?: OverviewAgentStat[] | null
-    chartDataTruncated?: boolean
-    checkpointCount?: number | null
-    chartHeight?: string
-  }>(),
-  {
-    startTime: undefined,
-    endTime: undefined,
-    agentStats: () => [],
-    chartDataTruncated: false,
-    checkpointCount: null,
-    chartHeight: '400px',
-  }
-)
+const { theme, tooltip, xAxisBase, yAxisBase } = useChartTheme()
 
-/** Show empty state only when no date range is provided and no data */
-const isEmpty = computed(
-  () =>
-    !props.chartData?.length &&
-    (props.startTime == null || props.endTime == null)
-)
+const MIN_SIZE = 8
+const MAX_SIZE = 36
+const changed = (r: AnalyticsRow) => (r.additions ?? 0) + (r.deletions ?? 0)
+const maxChanged = computed(() => Math.max(1, ...props.rows.map(changed)))
+/** Area-proportional size: diameter grows with the square root of lines changed */
+function sizeOf(lines: number): number {
+  return MIN_SIZE + (MAX_SIZE - MIN_SIZE) * Math.sqrt(lines / maxChanged.value)
+}
+const sizeLegend = computed(() => {
+  const m = maxChanged.value
+  const steps = [Math.max(1, Math.round(m / 25)), Math.round(m / 4), m]
+  return [...new Set(steps)].filter((v) => v > 0).map((v) => ({ v, d: sizeOf(v) }))
+})
 
-/** Show chart when: has date range (even if no data) OR has data */
-const showChart = computed(
-  () =>
-    (props.startTime != null && props.endTime != null) || (props.chartData?.length ?? 0) > 0
-)
-
-/** Convert Unix ms to date string (YYYY-MM-DD) in local timezone */
-function toDateStr(ts: number): string {
+function hourOf(ts: number): number {
   const d = new Date(ts)
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+  return d.getHours() + d.getMinutes() / 60
 }
 
-/** Convert Unix ms to hour (0-24) in local timezone */
-function toHour(ts: number): number {
-  const d = new Date(ts)
-  return d.getHours() + d.getMinutes() / 60 + d.getSeconds() / 3600
-}
-
-/** Circle size: min 8, max 40, scale by additions. null/0 -> 8 */
-function symbolSize(additions: number): number {
-  const a = additions ?? 0
-  if (a <= 0) return 8
-  return Math.min(40, Math.max(8, 8 + Math.log2(a + 1) * 4))
-}
-
-const chartOption = computed<EChartsOption>(() => {
-  const data = props.chartData ?? []
-  const byAgent = new Map<string, { x: string; y: number; size: number; item: OverviewCheckpointChartItem }[]>()
-  for (const item of data) {
-    const agent = item.agent ?? 'Unknown'
-    if (!byAgent.has(agent)) byAgent.set(agent, [])
-    byAgent.get(agent)!.push({
-      x: toDateStr(item.commitTime),
-      y: toHour(item.commitTime),
-      size: symbolSize(item.additions ?? 0),
-      item,
-    })
-  }
-
-  const series = Array.from(byAgent.entries()).map(([agent, points]) => ({
+/** One series per agent; data keeps the row index so tooltip and click resolve the exact checkpoint */
+const option = computed<EChartsOption>(() => {
+  const t = theme.value
+  const byAgent = new Map<string, number[]>()
+  props.rows.forEach((r, i) => {
+    const a = dimValue(r, 'agent')
+    if (!byAgent.has(a)) byAgent.set(a, [])
+    byAgent.get(a)!.push(i)
+  })
+  const series = [...byAgent.entries()].map(([agent, idxs]) => ({
+    type: 'scatter' as const,
     name: agent,
-    type: 'scatter',
-    data: points.map((p) => [p.x, p.y, p.size]),
-    symbolSize: (val: number[]) => val[2] ?? 8,
-    itemStyle: { color: getAgentColor(agent) },
-    emphasis: { scale: 1.2 },
+    symbol: agentSymbol(agent),
+    cursor: 'pointer',
+    data: idxs.map((i) => {
+      const r = props.rows[i]!
+      return { value: [r.commitTime, hourOf(r.commitTime), sizeOf(changed(r))], rowIndex: i }
+    }),
+    symbolSize: (v: number[]) => v[2]!,
+    itemStyle: { color: agentColor(agent, t.mode), opacity: 0.75, borderColor: t.surface, borderWidth: 1 },
+    emphasis: { scale: 1.15, itemStyle: { opacity: 1, borderColor: t.text } },
   }))
 
-  const xAxisData =
-    props.startTime != null && props.endTime != null && props.startTime <= props.endTime
-      ? getDateRange(props.startTime, props.endTime)
-      : (() => {
-          const fromData = [...new Set(data.map((d) => toDateStr(d.commitTime)))].sort()
-          return fromData.length ? fromData : ['']
-        })()
-
   return {
+    grid: { left: 8, right: 16, top: 12, bottom: 4, containLabel: true },
     tooltip: {
+      ...tooltip.value,
       trigger: 'item',
-      formatter: (params: any) => {
-        const p = params.data
-        const idx = data.findIndex(
-          (d) => toDateStr(d.commitTime) === p[0] && Math.abs(toHour(d.commitTime) - p[1]) < 0.01
-        )
-        const item = idx >= 0 ? data[idx] : null
-        if (!item) return `${params.seriesName}<br/>${p[0]} ${p[1].toFixed(1)}h`
-        return `${item.checkpointId}<br/>${item.agent ?? 'Unknown'} · +${item.additions ?? 0} / -${item.deletions ?? 0}`
+      formatter: (p: any) => {
+        const r = props.rows[p.data.rowIndex]
+        if (!r) return ''
+        const model = r.model ? ` · ${r.model}` : ''
+        const turns = r.turnCount ? ` · ${r.turnCount} turn${r.turnCount === 1 ? '' : 's'}` : ''
+        const msg = (r.commitMessage ?? '').replace(/</g, '&lt;')
+        return `<b>${msg.length > 70 ? msg.slice(0, 70) + '…' : msg || r.checkpointId}</b><br/>`
+          + `${formatDateTime(r.commitTime)} · ${r.repoName}<br/>`
+          + `${dimValue(r, 'agent')} · ${r.commitAuthorName ?? 'Unknown author'}<br/>`
+          + `+${r.additions ?? 0} / -${r.deletions ?? 0}${turns}${model}<br/>`
+          + '<span style="opacity:.7">Click to open</span>'
       },
     },
-    grid: { left: 60, right: 40, top: 20, bottom: 40 },
     xAxis: {
-      type: 'category',
-      data: xAxisData,
-      axisLabel: { rotate: 45 },
+      ...xAxisBase.value,
+      type: 'time',
+      min: props.start,
+      max: props.end,
+      axisLabel: { ...xAxisBase.value.axisLabel, formatter: '{MMM} {d}' },
     },
     yAxis: {
+      ...yAxisBase.value,
       type: 'value',
       min: 0,
       max: 24,
-      axisLabel: { formatter: '{value}' },
+      interval: 3,
+      inverse: true,
+      axisLabel: { ...yAxisBase.value.axisLabel, formatter: (v: number) => `${String(v).padStart(2, '0')}:00` },
     },
     series,
   }
 })
+
+function onClick(p: any) {
+  const r = props.rows[p?.data?.rowIndex]
+  if (r) emit('open', r)
+}
+
+/** Legend from rows without the agent filter, so other agents stay visible to switch to */
+const legend = computed(() => {
+  const counts = new Map<string, number>()
+  for (const r of props.legendRows) {
+    const a = dimValue(r, 'agent')
+    counts.set(a, (counts.get(a) ?? 0) + 1)
+  }
+  const total = props.legendRows.length || 1
+  return [...counts.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .map(([agent, count]) => ({ agent, count, pct: Math.round((100 * count) / total) }))
+})
+
+const table = computed(() => ({
+  columns: ['Commit time', 'Agent', 'Repository', 'Author', 'Added', 'Deleted'],
+  rows: [...props.rows]
+    .sort((a, b) => b.commitTime - a.commitTime)
+    .map((r) => [formatDateTime(r.commitTime), dimValue(r, 'agent'), r.repoName, r.commitAuthorName ?? '-', r.additions ?? 0, r.deletions ?? 0]),
+}))
 </script>
+
+<template>
+  <ChartCard
+    title="Checkpoint timeline"
+    :subtitle="`${rows.length.toLocaleString()} checkpoints · x = commit date, y = hour of day, size = lines changed`"
+    :summary="`Scatter plot of ${rows.length} checkpoints by commit date and hour of day, sized by lines changed and colored by agent.`"
+    :table="table"
+    :empty="!rows.length"
+    empty-text="No checkpoints in this range"
+  >
+    <div class="h-96">
+      <VChart :option="option" autoresize @click="onClick" />
+    </div>
+    <template #footer>
+      <div class="flex flex-wrap items-center justify-between gap-4">
+        <div class="flex flex-wrap gap-1.5" role="group" aria-label="Filter by agent">
+          <button
+            v-for="l in legend"
+            :key="l.agent"
+            type="button"
+            class="inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-sm transition-colors border"
+            :class="[
+              selectedAgent === l.agent ? 'border-default bg-elevated' : 'border-transparent hover:bg-elevated',
+              selectedAgent && selectedAgent !== l.agent ? 'opacity-50' : '',
+            ]"
+            :aria-pressed="selectedAgent === l.agent"
+            :title="selectedAgent === l.agent ? 'Clear the agent filter' : `Show only ${l.agent}`"
+            @click="emit('toggleAgent', l.agent)"
+          >
+            <svg viewBox="0 0 12 12" class="size-3" aria-hidden="true">
+              <path :d="agentSymbolSvg(l.agent)" :fill="agentColor(l.agent, theme.mode)" />
+            </svg>
+            <span class="text-default">{{ l.agent }}</span>
+            <span class="text-muted tabular-nums">{{ l.count }} · {{ l.pct }}%</span>
+          </button>
+        </div>
+        <div class="flex items-end gap-3 text-xs text-muted" aria-label="Size legend: lines changed">
+          <span class="self-center">Lines changed</span>
+          <span v-for="s in sizeLegend" :key="s.v" class="inline-flex flex-col items-center gap-1">
+            <span
+              class="rounded-full border border-current opacity-60"
+              :style="{ width: `${s.d}px`, height: `${s.d}px` }"
+            />
+            <span class="tabular-nums">{{ s.v.toLocaleString() }}</span>
+          </span>
+        </div>
+      </div>
+    </template>
+  </ChartCard>
+</template>

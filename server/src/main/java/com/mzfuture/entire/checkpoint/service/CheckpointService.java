@@ -2,6 +2,7 @@ package com.mzfuture.entire.checkpoint.service;
 
 import com.mzfuture.entire.checkpoint.dto.request.CheckpointFilterParams;
 import com.mzfuture.entire.checkpoint.dto.response.CheckpointDTO;
+import com.mzfuture.entire.checkpoint.dto.response.CheckpointTimeBoundsDTO;
 import com.mzfuture.entire.checkpoint.dto.request.CheckpointSearchParams;
 import com.mzfuture.entire.checkpoint.dto.request.CheckpointUpdateParams;
 import com.mzfuture.entire.checkpoint.dto.response.RepoOptionDTO;
@@ -23,6 +24,9 @@ public interface CheckpointService {
     List<RepoOptionDTO> getReposForFilter(CheckpointFilterParams params);
 
     List<String> getCommitAuthorsForFilter(CheckpointFilterParams params);
+
+    /// Commit time of the oldest and newest checkpoint
+    CheckpointTimeBoundsDTO getTimeBounds();
 
     /// Map entities to DTOs, including the platform commit URL
     List<CheckpointDTO> toDTOs(List<com.mzfuture.entire.checkpoint.entity.Checkpoint> checkpoints);

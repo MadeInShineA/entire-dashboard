@@ -40,9 +40,8 @@ import type { CheckpointDTO } from '../types/checkpoint.types'
 import type { PagerPayload } from '~/shared/types/api'
 import { formatTokenCount } from '~/shared/utils/format'
 import { openExternal } from '~/shared/utils/browser'
-import { useAgentColors } from '~/features/overview/composables/useAgentColors'
-
-const { getAgentBadgeStyle } = useAgentColors()
+import AgentBadge from '~/features/overview/components/AgentBadge.vue'
+import { formatDateTime } from '~/shared/utils/date'
 
 const detailSlideoverRef = ref<InstanceType<typeof CheckpointDetailSlideover> | null>(null)
 const detailSlideoverOpen = ref(false)
@@ -56,17 +55,6 @@ function openCheckpointDetail(checkpoint: CheckpointDTO) {
 function formatCommitMessage(msg?: string | null): string {
   if (!msg) return '-'
   return msg.split('\n')[0]
-}
-
-function formatCommitTime(ts?: number | null): string {
-  if (ts == null) return '-'
-  const d = new Date(ts)
-  const y = d.getFullYear()
-  const m = String(d.getMonth() + 1).padStart(2, '0')
-  const day = String(d.getDate()).padStart(2, '0')
-  const h = String(d.getHours()).padStart(2, '0')
-  const min = String(d.getMinutes()).padStart(2, '0')
-  return `${y}-${m}-${day} ${h}:${min}`
 }
 
 const props = defineProps<{
@@ -102,7 +90,7 @@ const columns = [
       <button
         type="button"
         class="group max-w-[280px] w-full text-left inline-flex items-center gap-1.5 px-1.5 py-0.5 -mx-1.5 -my-0.5 rounded hover:bg-primary/10 transition-colors"
-        title="点击查看详情"
+        title="Open checkpoint details"
         onClick={() => openCheckpointDetail(row.original)}
       >
         <span class="truncate block text-primary hover:underline font-medium">{formatCommitMessage(row.original.commitMessage)}</span>
@@ -120,7 +108,7 @@ const columns = [
     accessorKey: 'commitTime',
     header: 'Commit Time',
     cell: ({ row }: { row: Row<CheckpointDTO> }) => (
-      <div class="whitespace-nowrap text-default">{formatCommitTime(row.original.commitTime)}</div>
+      <div class="whitespace-nowrap text-default">{formatDateTime(row.original.commitTime)}</div>
     ),
   },
   {
@@ -141,18 +129,7 @@ const columns = [
     accessorKey: 'agent',
     header: 'Agent',
     cell: ({ row }: { row: Row<CheckpointDTO> }) =>
-      row.original.agent ? (
-        <UBadge
-          size="xs"
-          variant="soft"
-          ui={{ base: 'border-0', color: { soft: '' } }}
-          style={getAgentBadgeStyle(row.original.agent)}
-        >
-          {row.original.agent}
-        </UBadge>
-      ) : (
-        <span class="text-gray-400">-</span>
-      ),
+      <AgentBadge agent={row.original.agent} />,
   },
   {
     accessorKey: 'filesTouched',

@@ -41,3 +41,7 @@ out/
 gradle.properties
 
 data/
+
+# Nix / direnv
+.direnv/
+result

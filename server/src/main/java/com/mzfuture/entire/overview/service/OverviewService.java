@@ -1,7 +1,9 @@
 package com.mzfuture.entire.overview.service;
 
 import com.mzfuture.entire.common.dto.PagerPayload;
+import com.mzfuture.entire.overview.dto.request.OverviewAnalyticsParams;
 import com.mzfuture.entire.overview.dto.request.OverviewCheckpointsParams;
+import com.mzfuture.entire.overview.dto.response.OverviewAnalyticsDTO;
 import com.mzfuture.entire.overview.dto.request.OverviewStatsParams;
 import com.mzfuture.entire.overview.dto.response.OverviewCheckpointListItemDTO;
 import com.mzfuture.entire.overview.dto.response.OverviewCheckpointsResponseDTO;
@@ -18,4 +20,7 @@ public interface OverviewService {
 
     /// Get paginated checkpoint list only (for pagination, no chart data)
     PagerPayload<OverviewCheckpointListItemDTO> getCheckpointsList(OverviewCheckpointsParams params);
+
+    /// Every checkpoint in the time range with its session aggregates, for client-side analytics
+    OverviewAnalyticsDTO getAnalytics(OverviewAnalyticsParams params);
 }

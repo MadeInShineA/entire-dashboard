@@ -18,4 +18,21 @@ public interface SessionRepository extends JpaRepository<Session, Long> {
     @org.springframework.data.jpa.repository.Query(
             "SELECT s FROM Session s WHERE s.checkpointId IN (SELECT c.id FROM Checkpoint c WHERE c.repoId = :repoId)")
     List<Session> findAllByRepoId(@org.springframework.data.repository.query.Param("repoId") Long repoId);
+
+    /// Per-checkpoint session sums for checkpoints committed in a time range (Entire CLI 0.13.2+ metadata).
+    /// Columns: checkpointId, sessionCount, inputTokens, outputTokens, cacheCreationTokens, cacheReadTokens,
+    /// apiCallCount, turnCount, model (one of the sessions' models; sessions of a checkpoint normally share one)
+    @org.springframework.data.jpa.repository.Query("""
+            SELECT s.checkpointId, COUNT(s.id),
+                   COALESCE(SUM(s.inputTokens), 0), COALESCE(SUM(s.outputTokens), 0),
+                   COALESCE(SUM(s.cacheCreationTokens), 0), COALESCE(SUM(s.cacheReadTokens), 0),
+                   COALESCE(SUM(s.apiCallCount), 0), COALESCE(SUM(s.turnCount), 0),
+                   MAX(s.model)
+            FROM Session s
+            WHERE s.checkpointId IN (SELECT c.id FROM Checkpoint c WHERE c.commitTime >= :start AND c.commitTime <= :end)
+            GROUP BY s.checkpointId
+            """)
+    List<Object[]> sumByCheckpointCommittedBetween(
+            @org.springframework.data.repository.query.Param("start") Long start,
+            @org.springframework.data.repository.query.Param("end") Long end);
 }

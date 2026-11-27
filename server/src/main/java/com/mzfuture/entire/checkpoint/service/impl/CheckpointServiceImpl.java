@@ -3,6 +3,7 @@ package com.mzfuture.entire.checkpoint.service.impl;
 import cn.hutool.core.util.StrUtil;
 import com.mzfuture.entire.checkpoint.dto.request.CheckpointFilterParams;
 import com.mzfuture.entire.checkpoint.dto.response.CheckpointDTO;
+import com.mzfuture.entire.checkpoint.dto.response.CheckpointTimeBoundsDTO;
 import com.mzfuture.entire.checkpoint.dto.request.CheckpointSearchParams;
 import com.mzfuture.entire.checkpoint.dto.response.RepoOptionDTO;
 import com.mzfuture.entire.checkpoint.dto.request.CheckpointUpdateParams;
@@ -167,5 +168,11 @@ public class CheckpointServiceImpl implements CheckpointService {
     @Override
     public List<String> getCommitAuthorsForFilter(CheckpointFilterParams params) {
         return filterRepository.findDistinctCommitAuthors(params);
+    }
+
+    @Override
+    public CheckpointTimeBoundsDTO getTimeBounds() {
+        return new CheckpointTimeBoundsDTO(
+                checkpointRepository.findMinCommitTime(), checkpointRepository.findMaxCommitTime());
     }
 }

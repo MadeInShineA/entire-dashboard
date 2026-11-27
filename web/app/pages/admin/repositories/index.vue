@@ -3,6 +3,7 @@ import RepoList from '~/features/repository/components/RepoList.vue'
 
 definePageMeta({
   layout: 'admin',
+  middleware: 'auth',
 })
 </script>
 

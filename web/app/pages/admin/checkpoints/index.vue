@@ -5,6 +5,7 @@ import { useCheckpointSearch } from '~/features/checkpoint/composables/useCheckp
 
 definePageMeta({
   layout: 'admin',
+  middleware: 'auth',
 })
 
 const {

@@ -75,3 +75,22 @@ export function validateDateRange(startDate: Date, endDate: Date): { valid: bool
 
   return { valid: true }
 }
+
+/**
+ * Format Unix ms as local "YYYY-MM-DD HH:mm"; '-' when missing
+ */
+export function formatDateTime(ts?: number | null): string {
+  if (ts == null) return '-'
+  const d = new Date(ts)
+  const hh = String(d.getHours()).padStart(2, '0')
+  const mm = String(d.getMinutes()).padStart(2, '0')
+  return `${formatDate(d)} ${hh}:${mm}`
+}
+
+/**
+ * "YYYY-MM-DD" -> short axis label like "Nov 27"
+ */
+export function shortDayLabel(dateStr: string): string {
+  const [y, m, d] = dateStr.split('-').map(Number)
+  return new Date(y!, (m ?? 1) - 1, d ?? 1).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+}

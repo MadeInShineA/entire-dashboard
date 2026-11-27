@@ -50,6 +50,11 @@ export const checkpointApi = {
     })
   },
 
+  /** Commit time of the oldest and newest checkpoint (both null when there are none) */
+  async getTimeBounds(): Promise<{ firstCommitTime: number | null; lastCommitTime: number | null }> {
+    return $adminApi('/checkpoint/time-bounds', { method: 'GET' })
+  },
+
   /** Sync checkpoints for a single repo (trigger Checkpoint sync) */
   async syncRepo(repoId: number, fullScan = false): Promise<void> {
     const params = fullScan ? '?fullScan=true' : ''

@@ -1,60 +1,22 @@
 /**
- * Agent color mapping - shared between ContributionChart scatter plot and CheckpointsList badges.
- * Colors must stay in sync for consistent visual association.
+ * Agent colors for HTML (badges, legends). Same fixed agent -> palette slot mapping as the charts
+ * (shared/utils/chart-palette.ts), resolved for the current color mode.
  */
-const AGENT_COLORS: Record<string, string> = {
-  'Claude Code': '#f97316',
-  'OpenCode': '#a855f7',
-  'Cursor': '#94a3b8',
-  'Copilot': '#6ee7b7',
-  'Codeium': '#fbbf24',
-  'Unknown': '#9ca3af',
-}
+import { agentColor, agentSymbolSvg } from '~/shared/utils/chart-palette'
 
 export function useAgentColors() {
-  function getAgentColor(agent: string): string {
-    const name = agent || 'Unknown'
-    return (
-      AGENT_COLORS[name] ??
-      `hsl(${name.split('').reduce((a, c) => a + c.charCodeAt(0), 0) % 360}, 60%, 50%)`
-    )
+  const colorMode = useColorMode()
+  const mode = computed(() => (colorMode.value === 'dark' ? 'dark' : 'light') as 'light' | 'dark')
+
+  function getAgentColor(agent: string | null | undefined): string {
+    return agentColor(agent, mode.value)
   }
 
-  /** Whether background is light (use dark text for contrast) */
-  function isLightColor(hex: string): boolean {
-    if (hex.startsWith('hsl')) {
-      const m = hex.match(/hsl\((\d+),\s*(\d+)%,\s*(\d+)%\)/)
-      if (m) return Number(m[3]) > 60
-      return false
-    }
-    const r = parseInt(hex.slice(1, 3), 16) / 255
-    const g = parseInt(hex.slice(3, 5), 16) / 255
-    const b = parseInt(hex.slice(5, 7), 16) / 255
-    const luminance = 0.299 * r + 0.587 * g + 0.114 * b
-    return luminance > 0.6
-  }
-
-  /** Badge style: soft background + colored text, matches scatter plot colors */
-  function getAgentBadgeStyle(agent: string): { backgroundColor: string; color: string; borderColor: string } {
+  /** Badge: neutral text (text never wears the series color), identity carried by a colored border + symbol */
+  function getAgentBadgeStyle(agent: string | null | undefined): Record<string, string> {
     const c = getAgentColor(agent)
-    if (c.startsWith('#')) {
-      return {
-        backgroundColor: `${c}20`,
-        color: c,
-        borderColor: `${c}40`,
-      }
-    }
-    const m = c.match(/hsl\((\d+),\s*(\d+)%,\s*(\d+)%\)/)
-    if (m) {
-      const [, h, s, l] = m
-      return {
-        backgroundColor: `hsla(${h}, ${s}%, ${l}%, 0.15)`,
-        color: c,
-        borderColor: `hsla(${h}, ${s}%, ${l}%, 0.4)`,
-      }
-    }
-    return { backgroundColor: 'transparent', color: c, borderColor: 'transparent' }
+    return { backgroundColor: `${c}1f`, borderColor: `${c}66` }
   }
 
-  return { getAgentColor, isLightColor, getAgentBadgeStyle }
+  return { getAgentColor, getAgentBadgeStyle, agentSymbolSvg }
 }

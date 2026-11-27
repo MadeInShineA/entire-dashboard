@@ -3,6 +3,10 @@ package com.mzfuture.entire.overview.service.impl;
 import com.mzfuture.entire.checkpoint.entity.Checkpoint;
 import com.mzfuture.entire.checkpoint.entity.QCheckpoint;
 import com.mzfuture.entire.checkpoint.repository.CheckpointRepository;
+import com.mzfuture.entire.checkpoint.repository.SessionRepository;
+import com.mzfuture.entire.overview.dto.request.OverviewAnalyticsParams;
+import com.mzfuture.entire.overview.dto.response.OverviewAnalyticsDTO;
+import com.mzfuture.entire.overview.dto.response.OverviewAnalyticsRowDTO;
 import com.mzfuture.entire.common.dto.PagerPayload;
 import com.mzfuture.entire.common.exception.Errors;
 import com.mzfuture.entire.gitrepo.entity.Repo;
@@ -41,7 +45,10 @@ public class OverviewServiceImpl implements OverviewService {
     private static final int DEFAULT_PAGE_SIZE = 20;
     private static final int MAX_PAGE_SIZE = 100;
 
+    private static final int ANALYTICS_ROW_LIMIT = 20_000;
+
     private final CheckpointRepository checkpointRepository;
+    private final SessionRepository sessionRepository;
     private final RepoRepository repoRepository;
 
     @Override
@@ -196,6 +203,99 @@ public class OverviewServiceImpl implements OverviewService {
                 .collect(Collectors.toList());
 
         return new PagerPayload<>(listItems, listPage.getTotalElements(), listPageable);
+    }
+
+    @Override
+    public OverviewAnalyticsDTO getAnalytics(OverviewAnalyticsParams params) {
+        ZoneId zone = ZoneId.systemDefault();
+        long start = params.getStartTime() != null
+                ? params.getStartTime()
+                : LocalDate.now(zone).minusDays(14).atStartOfDay(zone).toInstant().toEpochMilli();
+        long end = params.getEndTime() != null
+                ? params.getEndTime()
+                : LocalDate.now(zone).atTime(LocalTime.of(23, 59, 59, 999_000_000)).atZone(zone).toInstant().toEpochMilli();
+
+        if (start >= end) {
+            throw Errors.INVALID_ARGUMENT.toException("startTime must be less than endTime");
+        }
+        // Twice the dashboard's 90-day range, so the client can fetch the previous period in the same call
+        if (end - start > 2 * MAX_RANGE_MS) {
+            throw Errors.INVALID_ARGUMENT.toException("Time range must not exceed 180 days");
+        }
+
+        QCheckpoint q = QCheckpoint.checkpoint;
+        BooleanBuilder timeRange = new BooleanBuilder()
+                .and(q.commitTime.goe(start))
+                .and(q.commitTime.loe(end));
+        var page = checkpointRepository.findAll(timeRange,
+                PageRequest.of(0, ANALYTICS_ROW_LIMIT, Sort.by(Sort.Direction.DESC, "commitTime")));
+        List<Checkpoint> checkpoints = page.getContent();
+
+        Map<Long, Object[]> sumsByCheckpoint = sessionRepository.sumByCheckpointCommittedBetween(start, end).stream()
+                .collect(Collectors.toMap(r -> ((Number) r[0]).longValue(), r -> r, (a, b) -> a));
+
+        List<Long> repoIds = checkpoints.stream()
+                .map(Checkpoint::getRepoId)
+                .filter(Objects::nonNull)
+                .distinct()
+                .collect(Collectors.toList());
+        Map<Long, String> repoNameMap = repoRepository.findAllById(repoIds).stream()
+                .collect(Collectors.toMap(Repo::getId, Repo::getName, (a, b) -> a));
+
+        List<OverviewAnalyticsRowDTO> rows = new ArrayList<>(checkpoints.size());
+        for (Checkpoint c : checkpoints) {
+            rows.add(toAnalyticsRow(c, repoNameMap.getOrDefault(c.getRepoId(), ""), sumsByCheckpoint.get(c.getId())));
+        }
+
+        OverviewAnalyticsDTO dto = new OverviewAnalyticsDTO();
+        dto.setRows(rows);
+        dto.setTruncated(page.getTotalElements() > ANALYTICS_ROW_LIMIT);
+        dto.setLimit(ANALYTICS_ROW_LIMIT);
+        return dto;
+    }
+
+    private OverviewAnalyticsRowDTO toAnalyticsRow(Checkpoint c, String repoName, Object[] sums) {
+        OverviewAnalyticsRowDTO dto = new OverviewAnalyticsRowDTO();
+        dto.setId(c.getId());
+        dto.setCheckpointId(c.getCheckpointId());
+        dto.setRepoId(c.getRepoId());
+        dto.setRepoName(repoName);
+        dto.setBranch(c.getBranch());
+        dto.setCommitSha(c.getCommitSha());
+        dto.setCommitMessage(firstLine(c.getCommitMessage()));
+        dto.setCommitAuthorName(c.getCommitAuthorName());
+        dto.setCommitTime(c.getCommitTime());
+        dto.setAgent(c.getAgent());
+        dto.setFilesTouched(c.getFilesTouched() != null ? c.getFilesTouched() : 0);
+        dto.setAdditions(c.getAdditions() != null ? c.getAdditions() : 0);
+        dto.setDeletions(c.getDeletions() != null ? c.getDeletions() : 0);
+        dto.setTokenUsage(c.getTokenUsage() != null ? c.getTokenUsage() : 0L);
+        if (sums == null) {
+            dto.setSessionCount(0);
+            dto.setInputTokens(0L);
+            dto.setOutputTokens(0L);
+            dto.setCacheCreationTokens(0L);
+            dto.setCacheReadTokens(0L);
+            dto.setApiCallCount(0L);
+            dto.setTurnCount(0L);
+            return dto;
+        }
+        dto.setSessionCount(((Number) sums[1]).intValue());
+        dto.setInputTokens(((Number) sums[2]).longValue());
+        dto.setOutputTokens(((Number) sums[3]).longValue());
+        dto.setCacheCreationTokens(((Number) sums[4]).longValue());
+        dto.setCacheReadTokens(((Number) sums[5]).longValue());
+        dto.setApiCallCount(((Number) sums[6]).longValue());
+        dto.setTurnCount(((Number) sums[7]).longValue());
+        dto.setModel((String) sums[8]);
+        return dto;
+    }
+
+    private static String firstLine(String message) {
+        if (message == null) return null;
+        int nl = message.indexOf('\n');
+        String line = (nl >= 0 ? message.substring(0, nl) : message).strip();
+        return line.length() > 200 ? line.substring(0, 200) : line;
     }
 
     private OverviewCheckpointChartItemDTO toChartItem(Checkpoint c) {

@@ -2,6 +2,7 @@ package com.mzfuture.entire.checkpoint.controller;
 
 import com.mzfuture.entire.checkpoint.dto.request.CheckpointFilterParams;
 import com.mzfuture.entire.checkpoint.dto.response.CheckpointDTO;
+import com.mzfuture.entire.checkpoint.dto.response.CheckpointTimeBoundsDTO;
 import com.mzfuture.entire.checkpoint.dto.request.CheckpointSearchParams;
 import com.mzfuture.entire.checkpoint.dto.response.RepoOptionDTO;
 import com.mzfuture.entire.checkpoint.service.CheckpointService;
@@ -58,6 +59,13 @@ public class CheckpointController {
     @Operation(summary = "Get commit authors for filter", description = "Returns distinct commit author names from checkpoints matching the filter")
     public List<String> getCommitAuthors(@ModelAttribute @Valid CheckpointFilterParams params) {
         return checkpointService.getCommitAuthorsForFilter(params);
+    }
+
+    /// Commit time of the oldest and newest checkpoint (default date range of the Checkpoints page)
+    @GetMapping("/time-bounds")
+    @Operation(summary = "Get checkpoint time bounds", description = "Returns the commit time of the oldest and newest checkpoint; both null when there are none")
+    public CheckpointTimeBoundsDTO getTimeBounds() {
+        return checkpointService.getTimeBounds();
     }
 
     /// Search checkpoints by repoIds, commitAuthorNames, branch, commit message, time range (paginated)

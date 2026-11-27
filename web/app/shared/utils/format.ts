@@ -62,3 +62,19 @@ export function truncate(text: string, length: number, suffix = '...'): string {
   if (text.length <= length) return text
   return text.substring(0, length) + suffix
 }
+
+/**
+ * Compact number for tiles and axes: 1234 -> "1.2k", 3400000 -> "3.4M"
+ */
+export function formatCompact(value?: number | null): string {
+  if (value == null || Number.isNaN(value)) return '-'
+  return new Intl.NumberFormat('en-US', { notation: 'compact', maximumFractionDigits: 1 }).format(value)
+}
+
+/**
+ * Ratio (0..1) as a percentage string; '-' when null
+ */
+export function formatPercent(ratio?: number | null, digits = 0): string {
+  if (ratio == null || Number.isNaN(ratio)) return '-'
+  return `${(ratio * 100).toFixed(digits)} %`
+}

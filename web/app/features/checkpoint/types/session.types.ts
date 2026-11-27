@@ -24,6 +24,11 @@ export interface SessionDTO {
   totalCommitted?: number
   agentPercentage?: number
   promptPreview?: string
+  /** Entire CLI 0.13.2+ */
+  cacheCreationTokens?: number
+  cacheReadTokens?: number
+  model?: string
+  turnCount?: number
   createdAt?: number
   updatedAt?: number
 }

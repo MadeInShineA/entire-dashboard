@@ -1,6 +1,8 @@
 package com.mzfuture.entire.overview.controller;
 
+import com.mzfuture.entire.overview.dto.request.OverviewAnalyticsParams;
 import com.mzfuture.entire.overview.dto.request.OverviewCheckpointsParams;
+import com.mzfuture.entire.overview.dto.response.OverviewAnalyticsDTO;
 import com.mzfuture.entire.overview.dto.request.OverviewStatsParams;
 import com.mzfuture.entire.overview.dto.response.OverviewCheckpointsResponseDTO;
 import com.mzfuture.entire.overview.dto.response.OverviewStatsDTO;
@@ -45,5 +47,12 @@ public class OverviewController {
     public com.mzfuture.entire.common.dto.PagerPayload<com.mzfuture.entire.overview.dto.response.OverviewCheckpointListItemDTO> checkpointsList(
             @ModelAttribute @Valid OverviewCheckpointsParams params) {
         return overviewService.getCheckpointsList(params);
+    }
+
+    /// Get every checkpoint in range with session aggregates (AI vs human lines, input/output tokens)
+    @GetMapping("/analytics")
+    @Operation(summary = "Get overview analytics rows", description = "Returns every checkpoint in the time range (max 180 days, capped at 20000 rows) with the sums of its sessions. The dashboard aggregates, filters and compares periods client-side.")
+    public OverviewAnalyticsDTO analytics(@ModelAttribute @Valid OverviewAnalyticsParams params) {
+        return overviewService.getAnalytics(params);
     }
 }

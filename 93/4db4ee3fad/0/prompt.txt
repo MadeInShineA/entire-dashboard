@@ -1,0 +1,155 @@
+What dould you improve on the dashboard website ? Don't change anything now
+
+---
+
+Please do all that, also tell me how to see the dashboard locally before pushing  don't commit yet
+
+---
+
+Can you create a basic nix flake like 
+
+<pasted_content id="f2e0">
+{
+  description = "Development Environment";
+  inputs = {
+    nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
+    flake-utils.url = "github:numtide/flake-utils";
+  };
+  outputs =
+    {
+      self,
+      nixpkgs,
+      flake-utils,
+      ...
+    }:
+    flake-utils.lib.eachDefaultSystem (
+      system:
+      let
+        pkgs = nixpkgs.legacyPackages.${system};
+      in
+      {
+        devShells.default = pkgs.mkShell {
+          packages = with pkgs; [
+            nodejs
+            php
+            php.packages.composer
+          ];
+        };
+      }
+    );
+}
+</pasted_content id="f2e0">
+
+ with what's required to run the project locally like npm ?
+
+---
+
+<task-notification>
+<task-id>bfys7yb5f</task-id>
+<tool-use-id>toolu_016Hz3soTZR6V6ccEZ8WZHsA</tool-use-id>
+<output-file>/tmp/claude-1000/-home-madeinshinea-Coding-master-ma1-data-viz-data-viz-project-entire-dashboard/9d4d986a-0416-457d-8e0d-9df293ed0bcb/tasks/bfys7yb5f.output</output-file>
+<status>completed</status>
+<summary>Background command "Install frontend dependencies via nix" completed (exit code 0)</summary>
+</task-notification>
+
+---
+
+<task-notification>
+<task-id>bc3t1x3c0</task-id>
+<tool-use-id>toolu_01QougfSyRhQnW6qtKuhwRmD</tool-use-id>
+<output-file>/tmp/claude-1000/-home-madeinshinea-Coding-master-ma1-data-viz-data-viz-project-entire-dashboard/9d4d986a-0416-457d-8e0d-9df293ed0bcb/tasks/bc3t1x3c0.output</output-file>
+<status>completed</status>
+<summary>Background command "Compile backend with JDK 25 via nix" completed (exit code 0)</summary>
+</task-notification>
+
+---
+
+Put the default start period on the checkpoint view at the first checkpoint
+
+---
+
+<task-notification>
+<task-id>bilcyx3nh</task-id>
+<tool-use-id>toolu_01DkVjg4v5MDQLpbSHEvCF5h</tool-use-id>
+<output-file>/tmp/claude-1000/-home-madeinshinea-Coding-master-ma1-data-viz-data-viz-project-entire-dashboard/9d4d986a-0416-457d-8e0d-9df293ed0bcb/tasks/bilcyx3nh.output</output-file>
+<status>completed</status>
+<summary>Background command "Recompile backend" completed (exit code 0)</summary>
+</task-notification>
+
+---
+
+<task-notification>
+<task-id>bkwrapntv</task-id>
+<tool-use-id>toolu_018zGptZzob2Q7brpdnLstEz</tool-use-id>
+<output-file>/tmp/claude-1000/-home-madeinshinea-Coding-master-ma1-data-viz-data-viz-project-entire-dashboard/9d4d986a-0416-457d-8e0d-9df293ed0bcb/tasks/bkwrapntv.output</output-file>
+<status>completed</status>
+<summary>Background command "Start Nuxt dev server on 3001" completed (exit code 0)</summary>
+</task-notification>
+
+---
+
+<task-notification>
+<task-id>bv8brgu0a</task-id>
+<tool-use-id>toolu_01BJq7262ZmookefqGBqsZoa</tool-use-id>
+<output-file>/tmp/claude-1000/-home-madeinshinea-Coding-master-ma1-data-viz-data-viz-project-entire-dashboard/9d4d986a-0416-457d-8e0d-9df293ed0bcb/tasks/bv8brgu0a.output</output-file>
+<status>failed</status>
+<summary>Background command "Start backend on 8080 against Docker MySQL" failed with exit code 1</summary>
+</task-notification>
+
+---
+
+On the file Page like http://localhost:3001/admin/files?repoId=1&branch=main&path=README.md I want to be able to easily show the session when clicking on a line like[Image #2] Can it open session 2 sidebar or something ? Do what's best ux ui wise
+
+---
+
+[Image #3] Why is this empty ?
+
+---
+
+Update the dashboard from the principle that users will use at least entire 0.13.2 then Can you also update the readme with new screenshots etc ?
+
+---
+
+<task-notification>
+<task-id>basw8x6tf</task-id>
+<tool-use-id>toolu_013AQ7LosBXZt7RxKFkk2JZr</tool-use-id>
+<output-file>/tmp/claude-1000/-home-madeinshinea-Coding-master-ma1-data-viz-data-viz-project-entire-dashboard/9d4d986a-0416-457d-8e0d-9df293ed0bcb/tasks/basw8x6tf.output</output-file>
+<status>completed</status>
+<summary>Background command "Start backend (compiles first)" completed (exit code 0)</summary>
+</task-notification>
+
+---
+
+[Image #4] Make this open the checkpoint view on the conversation section not the diff
+
+---
+
+Remove the blue bar, it's not looking good remove it completly [Image #5]
+
+---
+
+<task-notification>
+<task-id>b4upi1f9c</task-id>
+<tool-use-id>toolu_01L3QTLBvTAYjG7dDzYegUwr</tool-use-id>
+<output-file>/tmp/claude-1000/-home-madeinshinea-Coding-master-ma1-data-viz-data-viz-project-entire-dashboard/9d4d986a-0416-457d-8e0d-9df293ed0bcb/tasks/b4upi1f9c.output</output-file>
+<status>completed</status>
+<summary>Background command "Restart Nuxt dev server" completed (exit code 0)</summary>
+</task-notification>
+
+---
+
+<task-notification>
+<task-id>bec2jif7n</task-id>
+<tool-use-id>toolu_01N4BT9qPxp9X4Wz1imMDPHG</tool-use-id>
+<output-file>/tmp/claude-1000/-home-madeinshinea-Coding-master-ma1-data-viz-data-viz-project-entire-dashboard/9d4d986a-0416-457d-8e0d-9df293ed0bcb/tasks/bec2jif7n.output</output-file>
+<status>completed</status>
+<summary>Background command "Start backend with new migration" completed (exit code 0)</summary>
+</task-notification>
+
+---
+
+Make the readme completly in english, say this dashboard takes where the original repo left oft, list the additional features with screenshot etc, make it look clean and professional
+
+---
+
+Please also commit everything with a tagged release for the image builder and update the docker compose with the tag

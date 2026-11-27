@@ -1,0 +1,157 @@
+{
+  "cli_version": "0.13.2",
+  "checkpoint_id": "934db4ee3fad",
+  "session_id": "9d4d986a-0416-457d-8e0d-9df293ed0bcb",
+  "strategy": "manual-commit",
+  "created_at": "2026-11-27T09:35:07.148794247Z",
+  "branch": "main",
+  "checkpoints_count": 6,
+  "save_step_count": 5,
+  "files_touched": [
+    ".envrc",
+    ".gitignore",
+    "README.md",
+    "README.zh-CN.md",
+    "docs/imgs/dashboard.png",
+    "docs/imgs/snapshot_files.png",
+    "docs/imgs/snapshot_overview.png",
+    "docs/imgs/snapshot_sessions.png",
+    "flake.lock",
+    "flake.nix",
+    "server/src/main/java/com/mzfuture/entire/checkpoint/controller/CheckpointController.java",
+    "server/src/main/java/com/mzfuture/entire/checkpoint/dto/response/SessionDTO.java",
+    "server/src/main/java/com/mzfuture/entire/checkpoint/entity/Session.java",
+    "server/src/main/java/com/mzfuture/entire/checkpoint/parser/SessionMetadataParser.java",
+    "server/src/main/java/com/mzfuture/entire/checkpoint/parser/SessionParseResult.java",
+    "server/src/main/java/com/mzfuture/entire/checkpoint/repository/CheckpointRepository.java",
+    "server/src/main/java/com/mzfuture/entire/checkpoint/repository/SessionRepository.java",
+    "server/src/main/java/com/mzfuture/entire/checkpoint/service/CheckpointService.java",
+    "server/src/main/java/com/mzfuture/entire/checkpoint/service/impl/CheckpointServiceImpl.java",
+    "server/src/main/java/com/mzfuture/entire/checkpoint/service/impl/CheckpointSyncServiceImpl.java",
+    "server/src/main/java/com/mzfuture/entire/overview/controller/OverviewController.java",
+    "server/src/main/java/com/mzfuture/entire/overview/service/OverviewService.java",
+    "server/src/main/java/com/mzfuture/entire/overview/service/impl/OverviewServiceImpl.java",
+    "web/app/features/checkpoint/api/checkpoint.api.ts",
+    "web/app/features/checkpoint/components/CheckpointTable.vue",
+    "web/app/features/checkpoint/composables/useCheckpointSearch.ts",
+    "web/app/features/checkpoint/types/session.types.ts",
+    "web/app/features/file-history/components/FileBlameView.vue",
+    "web/app/features/overview/api/overview.api.ts",
+    "web/app/features/overview/components/CheckpointsList.vue",
+    "web/app/features/overview/components/ContributionChart.vue",
+    "web/app/features/overview/composables/useAgentColors.ts",
+    "web/app/features/overview/composables/useOverviewCheckpoints.ts",
+    "web/app/features/overview/composables/useOverviewStats.ts",
+    "web/app/features/overview/constants/overview.constants.ts",
+    "web/app/pages/admin/checkpoints/index.vue",
+    "web/app/pages/admin/files/index.vue",
+    "web/app/pages/admin/overview.vue",
+    "web/app/pages/admin/repositories/index.vue",
+    "web/app/shared/components/StatsCard.vue",
+    "web/app/shared/components/StatsChart.vue",
+    "web/app/shared/composables/useStatsCharts.ts",
+    "web/app/shared/types/stats.ts",
+    "web/app/shared/utils/date.ts",
+    "web/app/shared/utils/format.ts"
+  ],
+  "agent": "Claude Code",
+  "model": "claude-opus-5-5",
+  "turn_id": "b712f0cb7fce",
+  "compact_transcript_start": 0,
+  "token_usage": {
+    "input_tokens": 350,
+    "cache_creation_tokens": 383727,
+    "cache_read_tokens": 41109925,
+    "output_tokens": 164572,
+    "api_call_count": 161
+  },
+  "session_token_usage": {
+    "input_tokens": 350,
+    "cache_creation_tokens": 383727,
+    "cache_read_tokens": 41109925,
+    "output_tokens": 164572,
+    "api_call_count": 161
+  },
+  "redaction": {
+    "replacements": 216,
+    "layers": {
+      "betterleaks": 66,
+      "connection_string": 0,
+      "credential_key": 0,
+      "credential_value": 28,
+      "credentialed_uri": 0,
+      "entropy": 130,
+      "key_context": 0,
+      "provider_token": 0,
+      "shell_stdin": 0
+    }
+  },
+  "skill_events_version": 1,
+  "skill_events": [
+    {
+      "id": "claude-skill-toolu_01K6PiNhimdcSGZtBLGSrvwn",
+      "event_type": "tool_invocation",
+      "skill": {
+        "name": "dataviz"
+      },
+      "source": {
+        "agent": "claude-code",
+        "signal": "skill_tool_use",
+        "confidence": "explicit"
+      },
+      "turn_id": "b712f0cb7fce",
+      "transcript_anchor": {
+        "unit": "line",
+        "start": 136,
+        "end": 137,
+        "entry_ids": [
+          "372f2a92-d93a-4aa7-b5ad-93d7d2e06c16"
+        ],
+        "tool_use_id": "toolu_01K6PiNhimdcSGZtBLGSrvwn"
+      },
+      "native": {
+        "tool_name": "Skill",
+        "tool_use_id": "toolu_01K6PiNhimdcSGZtBLGSrvwn"
+      },
+      "collapse": {
+        "target": "tool_pair",
+        "label": "Skill: dataviz",
+        "default_collapsed": true
+      }
+    },
+    {
+      "id": "claude-skill-toolu_01Dk6CPGgfdSVcvcPTEuCsAg",
+      "event_type": "tool_invocation",
+      "skill": {
+        "name": "anthropic-skills:built-in-browser"
+      },
+      "source": {
+        "agent": "claude-code",
+        "signal": "skill_tool_use",
+        "confidence": "explicit"
+      },
+      "turn_id": "b712f0cb7fce",
+      "transcript_anchor": {
+        "unit": "line",
+        "start": 856,
+        "end": 857,
+        "entry_ids": [
+          "ed402539-1b68-47d6-bedb-4e5a617e7403"
+        ],
+        "tool_use_id": "toolu_01Dk6CPGgfdSVcvcPTEuCsAg"
+      },
+      "native": {
+        "tool_name": "Skill",
+        "tool_use_id": "toolu_01Dk6CPGgfdSVcvcPTEuCsAg"
+      },
+      "collapse": {
+        "target": "tool_pair",
+        "label": "Skill: anthropic-skills:built-in-browser",
+        "default_collapsed": true
+      }
+    }
+  ],
+  "session_metrics": {
+    "turn_count": 6
+  }
+}
